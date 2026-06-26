@@ -25,6 +25,7 @@ the metadata**, not any acoustic index. Full limitations are in the report.
 
 | Script | Purpose |
 |--------|---------|
+| `download.py` | Download Xeno-canto recordings for one continent (`--continent`, optional `--quality`/`--year`/`--months`) |
 | `convert_metadata.py` | Flatten Xeno-canto metadata JSON pages → one CSV (274,301 records) |
 | `merge_meta.py` | Left-join metadata onto each `score_<continent>.csv` by recording `id` |
 | `build_cells.py` | Aggregate to 0.1° cells, compute rarefied richness, correlate indices vs richness |
@@ -57,6 +58,8 @@ trackable across ≥2 years (204 across all three).
 ## Reproduce
 
 ```bash
+# download recordings (one continent at a time; matches the existing dataset)
+python3 scripts/download.py --continent africa     # ... america asia australia europe
 python3 scripts/convert_metadata.py <metadata_dir> metadata.csv
 python3 scripts/merge_meta.py            # produces score_<continent>_meta.csv
 python3 scripts/build_cells.py           # produces grid_cells.csv + correlations

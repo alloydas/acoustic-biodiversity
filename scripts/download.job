@@ -1,0 +1,17 @@
+#!/bin/bash
+# Parameterized Xeno-canto download job. Submit per continent with:
+#    sbatch --job-name=dl_africa --export=CONTINENT=africa download.job
+# CONTINENT must be one of: africa america asia australia europe
+#SBATCH --time=96:00:00   # walltime limit (HH:MM:SS)
+#SBATCH --nodes=2   # number of nodes
+#SBATCH --ntasks-per-node=36   # 36 processor core(s) per node
+#SBATCH --mem=100G   # maximum memory per node
+#SBATCH --mail-user=alloydas@iastate.edu
+#SBATCH --mail-type=BEGIN
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
+#SBATCH --output="download_%x.out"   # %x = job name
+#SBATCH --error="download_%x.err"
+
+: "${CONTINENT:?set CONTINENT, e.g. sbatch --export=CONTINENT=africa download.job}"
+python download.py --continent "$CONTINENT"
