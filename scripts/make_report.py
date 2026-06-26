@@ -224,5 +224,56 @@ fig.text(0.08, 0.16, out_txt, ha='left', va='top', size=9.0, family='monospace')
 fig.text(0.5, 0.03, 'Acoustic Biodiversity Report  -  page 4  -  metric & results', ha='center', size=8, color='#999')
 pp.savefig(fig); plt.close(fig)
 
+# ---- Page 5: year-by-year ----
+import os
+if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv'):
+    yr = csv.reader(open('grid_cells_yearly.csv', newline='')); yh = next(yr); yi = {c: i for i, c in enumerate(yh)}
+    YEARS = ['2023', '2024', '2025']
+    trend = collections.defaultdict(lambda: collections.defaultdict(list))
+    for row in yr:
+        s = row[yi['S_rare10']]
+        if s != '':
+            trend[row[yi['year']]][row[yi['continent']]].append(float(s))
+    conts = sorted({c for y in trend for c in trend[y]})
+
+    cr = csv.reader(open('cell_change.csv', newline='')); ch = next(cr); kdir = ch.index('direction')
+    cd = ch.index('delta'); deltas = []; dirc = collections.Counter()
+    for row in cr:
+        dirc[row[kdir]] += 1; deltas.append(float(row[cd]))
+
+    fig = plt.figure(figsize=(11.69, 8.27))
+    fig.suptitle('Year-by-year (2023-2025): temporal slices of the metric', size=14, weight='bold')
+    # left: trend lines
+    ax1 = fig.add_axes([0.07, 0.32, 0.42, 0.50])
+    palette = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00']
+    for k, cont in enumerate(conts):
+        ys = [(sorted(trend[y][cont])[len(trend[y][cont]) // 2] if trend[y][cont] else float('nan')) for y in YEARS]
+        ax1.plot(YEARS, ys, marker='o', color=palette[k % 5], label=cont)
+    gall = [sorted(v for c in conts for v in trend[y][c]) for y in YEARS]
+    ax1.plot(YEARS, [g[len(g) // 2] for g in gall], marker='s', color='black', lw=2.4, label='ALL')
+    ax1.set_ylabel('Median richness (S_rare10)'); ax1.set_title('Recorded-richness trend by continent', size=11)
+    ax1.grid(True, lw=0.3, color='#eee'); ax1.legend(fontsize=8, ncol=2)
+    # right: change histogram
+    ax2 = fig.add_axes([0.57, 0.32, 0.38, 0.50])
+    ax2.hist(deltas, bins=30, color='#888', edgecolor='white')
+    ax2.axvline(0, color='k', lw=1)
+    ax2.set_xlabel('Change in richness, first->last scored year')
+    ax2.set_title(f'Per-cell change (625 cells tracked)\nup={dirc["up"]}  down={dirc["down"]}  flat={dirc["flat"]}', size=11)
+
+    note = (
+        "COVERAGE: 3,688 scored cell-years; 625 cells scored in >=2 years, 204 in all three.\n\n"
+        "CAUTION: a 3-year window cannot show real biodiversity change. These movements reflect\n"
+        "WHICH cells were recorded and by WHOM each year (effort + observer turnover), not\n"
+        "ecological gain or loss. The global dip (10.0 -> 9.4) tracks recording effort, not nature.\n"
+        "Use year slices to study sampling coverage over time -- not as a biodiversity time series.\n\n"
+        "OUTPUTS: grid_cells_yearly.csv (per cell-year),  cell_change.csv (per tracked cell)."
+    )
+    fig.text(0.07, 0.24, note, ha='left', va='top', size=9.2, family='monospace')
+    fig.text(0.5, 0.03, 'Acoustic Biodiversity Report  -  page 5  -  temporal', ha='center', size=8, color='#999')
+    pp.savefig(fig); plt.close(fig)
+    npages = 5
+else:
+    npages = 4
+
 pp.close()
-print('wrote Acoustic_Biodiversity_Report.pdf  (4 pages)')
+print(f'wrote Acoustic_Biodiversity_Report.pdf  ({npages} pages)')

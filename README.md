@@ -28,6 +28,7 @@ the metadata**, not any acoustic index. Full limitations are in the report.
 | `convert_metadata.py` | Flatten Xeno-canto metadata JSON pages → one CSV (274,301 records) |
 | `merge_meta.py` | Left-join metadata onto each `score_<continent>.csv` by recording `id` |
 | `build_cells.py` | Aggregate to 0.1° cells, compute rarefied richness, correlate indices vs richness |
+| `build_cells_yearly.py` | Same metric split by calendar year (2023–2025) + per-cell change |
 | `make_report.py` | Render the multi-page PDF report |
 
 The upstream acoustic-index computation (`compute_indice.py`, `acoustic_index.py`, the SLURM
@@ -42,6 +43,16 @@ included here — only the analysis layer and its outputs.
 | `grid_cells_labeled.csv` | Global-tertile good/moderate/bad labels |
 | `grid_cells_labeled_regional.csv` | Region-relative (latitude-band) labels — **primary** |
 | `biodiversity_map.csv` | `lat, lon, continent, n_rec, richness, label, label_code` — ready for GIS/folium |
+| `grid_cells_yearly.csv` | Per-(cell, year) richness for 2023–2025 |
+| `cell_change.csv` | Cells scored in ≥2 years with first/last richness and trend |
+
+### Temporal note (2023–2025)
+
+The metric is also computed per year (report page 5). **A 3-year window cannot reveal real
+biodiversity change** — year-to-year movement reflects *which* cells were recorded and by
+*whom* each year (effort + observer turnover), not ecological gain/loss. Treat the yearly
+slices as sampling-coverage diagnostics, not a biodiversity time series. 625 cells are
+trackable across ≥2 years (204 across all three).
 
 ## Reproduce
 
