@@ -1,0 +1,10 @@
+# Large data that lives in the processing project, never push these
+*.mp3
+*.wav
+*.err
+*.out
+score_*.csv
+*_meta.csv
+metadata_*.csv
+__pycache__/
+*.pyc
