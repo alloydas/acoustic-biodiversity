@@ -26,10 +26,11 @@ the metadata**, not any acoustic index. Full limitations are in the report.
 | Script | Purpose |
 |--------|---------|
 | `download.py` | Download Xeno-canto recordings for one continent (`--continent`, optional `--quality`/`--year`/`--months`) |
-| `convert_metadata.py` | Flatten Xeno-canto metadata JSON pages → one CSV (274,301 records) |
-| `merge_meta.py` | Left-join metadata onto each `score_<continent>.csv` by recording `id` |
+| `convert_metadata.py` | Flatten Xeno-canto metadata JSON pages → one CSV (274,296 records) |
+| `merge_meta.py` | Left-join metadata onto each `score_<continent>.csv` (base **+ gap**) by recording `id` |
 | `build_cells.py` | Aggregate to 0.1° cells, compute rarefied richness, correlate indices vs richness |
 | `build_cells_yearly.py` | Same metric split by calendar year (2023–2025) + per-cell change |
+| `build_labels.py` | Assign good/moderate/bad tertile labels (global + region-relative) → `grid_cells_labeled*.csv`, `biodiversity_map.csv` |
 | `make_report.py` | Render the multi-page PDF report |
 
 The upstream acoustic-index computation (`compute_indice.py`, `acoustic_index.py`, the SLURM
@@ -40,7 +41,7 @@ included here — only the analysis layer and its outputs.
 
 | File | Contents |
 |------|----------|
-| `grid_cells.csv` | Per-cell acoustic features + richness (all 15,743 cells) |
+| `grid_cells.csv` | Per-cell acoustic features + richness (all 16,212 cells) |
 | `grid_cells_labeled.csv` | Global-tertile good/moderate/bad labels |
 | `grid_cells_labeled_regional.csv` | Region-relative (latitude-band) labels — **primary** |
 | `biodiversity_map.csv` | `lat, lon, continent, n_rec, richness, label, label_code` — ready for GIS/folium |
@@ -52,8 +53,8 @@ included here — only the analysis layer and its outputs.
 The metric is also computed per year (report page 5). **A 3-year window cannot reveal real
 biodiversity change** — year-to-year movement reflects *which* cells were recorded and by
 *whom* each year (effort + observer turnover), not ecological gain/loss. Treat the yearly
-slices as sampling-coverage diagnostics, not a biodiversity time series. 625 cells are
-trackable across ≥2 years (204 across all three).
+slices as sampling-coverage diagnostics, not a biodiversity time series. 667 cells are
+trackable across ≥2 years (212 across all three).
 
 ## Reproduce
 
@@ -61,7 +62,9 @@ trackable across ≥2 years (204 across all three).
 # download recordings (one continent at a time; matches the existing dataset)
 python3 scripts/download.py --continent africa     # ... america asia australia europe
 python3 scripts/convert_metadata.py <metadata_dir> metadata.csv
-python3 scripts/merge_meta.py            # produces score_<continent>_meta.csv
+python3 scripts/merge_meta.py            # produces score_<continent>_meta.csv (base + gap)
 python3 scripts/build_cells.py           # produces grid_cells.csv + correlations
+python3 scripts/build_cells_yearly.py    # produces grid_cells_yearly.csv + cell_change.csv
+python3 scripts/build_labels.py          # produces grid_cells_labeled*.csv + biodiversity_map.csv
 python3 scripts/make_report.py           # produces the PDF
 ```

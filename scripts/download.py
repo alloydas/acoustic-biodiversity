@@ -23,7 +23,7 @@ import argparse
 
 from xenopy import Query
 
-API_KEY = "174b9af76767d05178f2c9ae7aae7010c8121c94"
+API_KEY = "YOUR_XENOCANTO_API_KEY"
 # Xeno-canto 'area' values; continent name maps 1:1.
 AREAS = {"africa", "america", "asia", "australia", "europe"}
 

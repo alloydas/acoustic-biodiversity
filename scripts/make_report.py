@@ -1,6 +1,7 @@
 """Generate a multi-page PDF report of the acoustic-biodiversity analysis."""
 import csv
 import math
+import datetime
 import collections
 import matplotlib
 matplotlib.use('Agg')
@@ -90,6 +91,18 @@ def pct(p):
     return vals[int(len(vals) * p)]
 
 
+# ---- derived figures (computed from the data, not hardcoded, so the report
+#      text stays consistent with whatever grid_cells.csv it is run against) ----
+TODAY = datetime.date.today().isoformat()
+N_CELLS = len(cells)
+N_USABLE = len(usable)
+BEST_RHO = abs(corrs[0][1]) if corrs and corrs[0][1] is not None else 0.0
+COVER_PCT = 100 * N_USABLE / N_CELLS if N_CELLS else 0
+# These two are properties of the upstream merge, not visible in grid_cells.csv:
+N_RECORDINGS = 207601        # rows in the five score_<c>_meta.csv (merge_meta.py total)
+N_META = 274296              # records in metadata_since_2023-01-01.csv
+
+
 # ================= BUILD PDF =================
 pp = PdfPages('Acoustic_Biodiversity_Report.pdf')
 
@@ -98,19 +111,19 @@ fig = plt.figure(figsize=(8.27, 11.69))  # A4 portrait
 fig.text(0.5, 0.93, 'Acoustic Biodiversity Mapping', ha='center', size=22, weight='bold')
 fig.text(0.5, 0.90, 'A global location-level biodiversity metric from Xeno-canto recordings',
          ha='center', size=11, style='italic', color='#555')
-fig.text(0.5, 0.875, 'Generated 2026-06-26', ha='center', size=9, color='#888')
+fig.text(0.5, 0.875, f'Generated {TODAY}', ha='center', size=9, color='#888')
 
 summary = (
     "OBJECTIVE\n"
     "Derive a single metric that classifies a geographic location as biodiversity 'good' or 'bad',\n"
     "using a global archive of wildlife sound recordings and their metadata.\n\n"
     "DATA\n"
-    "  -  192,196 recordings across 5 continents (Xeno-canto), each with 42 acoustic indices\n"
+    f"  -  {N_RECORDINGS:,} recordings across 5 continents (Xeno-canto), each with 42 acoustic indices\n"
     "     computed by a SLURM batch pipeline (compute_indice.py over Butterworth-filtered audio).\n"
-    "  -  Metadata flattened from 274,301 API records (species, coordinates, quality, device).\n"
+    f"  -  Metadata flattened from {N_META:,} API records (species, coordinates, quality, device).\n"
     "  -  Acoustic scores joined to metadata on recording id (>99.99% match).\n\n"
     "METHOD\n"
-    "  1. Aggregate all recordings into 0.1-degree (~11 km) grid cells -> 15,743 cells.\n"
+    f"  1. Aggregate all recordings into 0.1-degree (~11 km) grid cells -> {N_CELLS:,} cells.\n"
     "  2. Per cell, compute species richness from recorded species (genus+species and the\n"
     "     'also' co-occurring-species field), corrected for sampling effort by Hurlbert\n"
     "     rarefaction to 10 recordings (S_rare10).\n"
@@ -118,8 +131,8 @@ summary = (
     "  4. Label each well-sampled cell good / moderate / bad relative to its 10-degree\n"
     "     latitude band (region-relative tertiles).\n\n"
     "HEADLINE RESULT\n"
-    f"  -  3,277 cells had enough recordings (>=10) to score confidently.\n"
-    f"  -  The acoustic indices did NOT predict species richness (best |Spearman rho| ~ 0.11).\n"
+    f"  -  {N_USABLE:,} cells had enough recordings (>=10) to score confidently.\n"
+    f"  -  The acoustic indices did NOT predict species richness (best |Spearman rho| ~ {BEST_RHO:.2f}).\n"
     "     The defensible biodiversity metric is therefore effort-controlled species richness,\n"
     "     not any acoustic index -- the indices are unreliable on targeted (non-soundscape)\n"
     "     recordings that dominate the archive.\n"
@@ -143,7 +156,7 @@ for lab in order:
 ax.set_xlim(-180, 180); ax.set_ylim(-60, 80)
 ax.set_xlabel('Longitude'); ax.set_ylabel('Latitude')
 ax.axhline(0, color='#ccc', lw=0.6); ax.grid(True, lw=0.3, color='#eee')
-ax.set_title('Region-relative biodiversity label per 0.1-degree cell (3,277 well-sampled cells)', size=13)
+ax.set_title(f'Region-relative biodiversity label per 0.1-degree cell ({N_USABLE:,} well-sampled cells)', size=13)
 ax.legend(loc='lower left', markerscale=2, framealpha=0.9)
 fig.text(0.5, 0.04, 'Acoustic Biodiversity Report  -  page 2  -  world map', ha='center', size=8, color='#999')
 pp.savefig(fig); plt.close(fig)
@@ -183,7 +196,7 @@ metric_txt = (
     "                       rarefaction; controls for recording effort)\n"
     "  label              = tertile of S_rare10 WITHIN the cell's 10-deg latitude\n"
     "                       band:  good = top third, bad = bottom third\n"
-    "  scope              = cells with >= 10 recordings (3,277 of 15,743 cells)\n\n"
+    f"  scope              = cells with >= 10 recordings ({N_USABLE:,} of {N_CELLS:,} cells)\n\n"
     "GLOBAL VALUE RANGE (S_rare10)\n"
     f"  min {vals[0]:.1f}   p25 {pct(.25):.1f}   median {pct(.5):.1f}   "
     f"p75 {pct(.75):.1f}   p90 {pct(.9):.1f}   max {max(vals):.0f}\n"
@@ -209,14 +222,14 @@ limit_txt = (
     "     latitude (thresholds ~10-13 everywhere) -- evidence the signal is\n"
     "     effort-driven, not the true tropical biodiversity peak. Region-relative\n"
     "     labelling is used so scores mean 'rich for its region'.\n"
-    "  4. Coverage. Only 21% of cells are confidently scored; the rest are\n"
+    f"  4. Coverage. Only {COVER_PCT:.0f}% of cells are confidently scored; the rest are\n"
     "     'insufficient_data' (< 10 recordings).\n"
 )
 fig.text(0.08, 0.46, limit_txt, ha='left', va='top', size=9.0, family='monospace')
 
 out_txt = (
     "OUTPUT FILES\n"
-    "  grid_cells.csv                    - per-cell features + richness (all 15,743 cells)\n"
+    f"  grid_cells.csv                    - per-cell features + richness (all {N_CELLS:,} cells)\n"
     "  grid_cells_labeled_regional.csv   - region-relative good/moderate/bad labels\n"
     "  biodiversity_map.csv              - lat, lon, label, code -> ready for GIS/folium\n"
 )
@@ -230,16 +243,21 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     yr = csv.reader(open('grid_cells_yearly.csv', newline='')); yh = next(yr); yi = {c: i for i, c in enumerate(yh)}
     YEARS = ['2023', '2024', '2025']
     trend = collections.defaultdict(lambda: collections.defaultdict(list))
+    cellyears = collections.defaultdict(set); scored_cy = 0
     for row in yr:
         s = row[yi['S_rare10']]
         if s != '':
             trend[row[yi['year']]][row[yi['continent']]].append(float(s))
+            cellyears[(row[yi['lat_cell']], row[yi['lon_cell']])].add(row[yi['year']])
+            scored_cy += 1
     conts = sorted({c for y in trend for c in trend[y]})
+    n_all3 = sum(1 for v in cellyears.values() if len(v) >= 3)
 
     cr = csv.reader(open('cell_change.csv', newline='')); ch = next(cr); kdir = ch.index('direction')
     cd = ch.index('delta'); deltas = []; dirc = collections.Counter()
     for row in cr:
         dirc[row[kdir]] += 1; deltas.append(float(row[cd]))
+    n_tracked = sum(dirc.values())
 
     fig = plt.figure(figsize=(11.69, 8.27))
     fig.suptitle('Year-by-year (2023-2025): temporal slices of the metric', size=14, weight='bold')
@@ -258,13 +276,15 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     ax2.hist(deltas, bins=30, color='#888', edgecolor='white')
     ax2.axvline(0, color='k', lw=1)
     ax2.set_xlabel('Change in richness, first->last scored year')
-    ax2.set_title(f'Per-cell change (625 cells tracked)\nup={dirc["up"]}  down={dirc["down"]}  flat={dirc["flat"]}', size=11)
+    ax2.set_title(f'Per-cell change ({n_tracked} cells tracked)\nup={dirc["up"]}  down={dirc["down"]}  flat={dirc["flat"]}', size=11)
 
+    dip_first = gall[0][len(gall[0]) // 2] if gall[0] else float('nan')
+    dip_last = gall[-1][len(gall[-1]) // 2] if gall[-1] else float('nan')
     note = (
-        "COVERAGE: 3,688 scored cell-years; 625 cells scored in >=2 years, 204 in all three.\n\n"
+        f"COVERAGE: {scored_cy:,} scored cell-years; {n_tracked} cells scored in >=2 years, {n_all3} in all three.\n\n"
         "CAUTION: a 3-year window cannot show real biodiversity change. These movements reflect\n"
         "WHICH cells were recorded and by WHOM each year (effort + observer turnover), not\n"
-        "ecological gain or loss. The global dip (10.0 -> 9.4) tracks recording effort, not nature.\n"
+        f"ecological gain or loss. The global dip ({dip_first:.1f} -> {dip_last:.1f}) tracks recording effort, not nature.\n"
         "Use year slices to study sampling coverage over time -- not as a biodiversity time series.\n\n"
         "OUTPUTS: grid_cells_yearly.csv (per cell-year),  cell_change.csv (per tracked cell)."
     )
