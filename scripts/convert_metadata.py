@@ -21,8 +21,9 @@ FIELDS = [
 
 
 def main(meta_dir, out_path):
-    pages = sorted(glob.glob(os.path.join(meta_dir, 'page*.json')),
-                   key=lambda p: int(''.join(filter(str.isdigit, os.path.basename(p)))))
+    # Recurse: metadata may be flat (dataset/metadata/since:.../page*.json) or
+    # bucketed by continent+year (dataset/metadata_10yr/<c>_<y>/page*.json).
+    pages = sorted(glob.glob(os.path.join(meta_dir, '**', 'page*.json'), recursive=True))
     print(f"Found {len(pages)} page files")
 
     n = 0

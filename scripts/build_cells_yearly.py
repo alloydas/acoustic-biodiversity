@@ -4,7 +4,7 @@ Same metric as build_cells.py but split by calendar year (from metadata 'date').
 Outputs:
   grid_cells_yearly.csv   - one row per (cell, year) with n_rec, S_obs, S_rare10
   cell_change.csv         - cells scored in >=2 years, with first/last richness + trend
-Prints global and per-continent richness trend across 2023-2025.
+Prints global and per-continent richness trend across all years present.
 """
 import csv
 import math
@@ -92,17 +92,21 @@ with open('grid_cells_yearly.csv', 'w', newline='') as f:
             scored[key][year] = s_rare
             trend[year][st['continent']].append(s_rare)
 
+# all calendar years present in the data (2015-2025 for the 10-year set)
+all_years = sorted({year for (_, year) in cy})
+
 # coverage
 cellyears = sum(1 for v in cy.values())
 scored_cy = sum(len(v) for v in scored.values())
 multi = {k: v for k, v in scored.items() if len(v) >= 2}
-all3 = {k: v for k, v in scored.items() if len(v) == 3}
+alln = {k: v for k, v in scored.items() if len(v) == len(all_years)}
 print(f'cell-years total: {cellyears}   scored (n>={M}): {scored_cy}')
-print(f'cells scored in >=2 years: {len(multi)}   in all 3 years: {len(all3)}')
+print(f'years present: {len(all_years)} ({all_years[0]}-{all_years[-1]})')
+print(f'cells scored in >=2 years: {len(multi)}   in all {len(all_years)} years: {len(alln)}')
 
 # global + continent trend (median richness of scored cells per year)
 print('\nMedian effort-controlled richness by year (scored cells):')
-years = ['2023', '2024', '2025']
+years = all_years
 allconts = sorted(FILES)
 header = f"{'region':<11}" + ''.join(f'{y:>10}' for y in years)
 print(header)

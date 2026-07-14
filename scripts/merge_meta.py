@@ -3,7 +3,8 @@
 Loads the flattened metadata CSV once, then for each continent writes
 score_<continent>_meta.csv = score columns + metadata columns (minus the id key).
 Score rows are the base score_<continent>.csv PLUS the gap-filled
-score_<continent>_gap.csv (identical schema); duplicate ids are dropped.
+score_<continent>_gap.csv PLUS the 10-year backfill score_<continent>_hist.csv
+(all identical schema); duplicate ids are dropped.
 """
 import os
 import sys
@@ -11,7 +12,7 @@ import csv
 
 csv.field_size_limit(10 ** 7)
 
-META = 'metadata_since_2023-01-01.csv'
+META = 'metadata_2015-2025.csv'
 CONTINENTS = ['africa', 'america', 'asia', 'australia', 'europe']
 
 
@@ -28,16 +29,18 @@ def load_meta(path):
 def merge(continent, meta, mcols):
     base = f'score_{continent}.csv'
     gap = f'score_{continent}_gap.csv'
+    hist = f'score_{continent}_hist.csv'
     out = f'score_{continent}_meta.csv'
     blank = [''] * len(mcols)
-    matched = total = gap_rows = dupes = 0
+    matched = total = gap_rows = hist_rows = dupes = 0
     seen = set()
     with open(out, 'w', newline='') as fo:
         w = csv.writer(fo)
         shdr = sid = None
-        # base first, then gap (same schema); skip the gap file's header and
-        # any id already written (gap is designed to be disjoint, but enforce it).
-        for src in (base, gap):
+        # base, then gap, then the 10-year backfill (all same schema); skip each
+        # file's header and any id already written (sources are designed to be
+        # disjoint, but enforce it — dedup by id keeps the first occurrence).
+        for src in (base, gap, hist):
             if not os.path.exists(src):
                 continue
             with open(src, newline='') as f:
@@ -56,12 +59,14 @@ def merge(continent, meta, mcols):
                     total += 1
                     if src == gap:
                         gap_rows += 1
+                    elif src == hist:
+                        hist_rows += 1
                     m = meta.get(rid)
                     if m is not None:
                         matched += 1
                     w.writerow(row + (m if m is not None else blank))
     pct = 100 * matched / total if total else 0
-    print(f'{continent:10} {total:>7} rows (+{gap_rows} gap, {dupes} dup dropped)  '
+    print(f'{continent:10} {total:>7} rows (+{gap_rows} gap, +{hist_rows} hist, {dupes} dup dropped)  '
           f'{matched:>7} matched ({pct:5.1f}%)  unmatched={total - matched}  -> {out}')
 
 

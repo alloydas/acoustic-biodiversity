@@ -99,8 +99,8 @@ N_USABLE = len(usable)
 BEST_RHO = abs(corrs[0][1]) if corrs and corrs[0][1] is not None else 0.0
 COVER_PCT = 100 * N_USABLE / N_CELLS if N_CELLS else 0
 # These two are properties of the upstream merge, not visible in grid_cells.csv:
-N_RECORDINGS = 207601        # rows in the five score_<c>_meta.csv (merge_meta.py total)
-N_META = 274296              # records in metadata_since_2023-01-01.csv
+N_RECORDINGS = 759767        # rows in the five score_<c>_meta.csv (merge_meta.py total, 2015-2025)
+N_META = 766747              # records flattened into metadata_2015-2025.csv
 
 
 # ================= BUILD PDF =================
@@ -241,7 +241,6 @@ pp.savefig(fig); plt.close(fig)
 import os
 if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv'):
     yr = csv.reader(open('grid_cells_yearly.csv', newline='')); yh = next(yr); yi = {c: i for i, c in enumerate(yh)}
-    YEARS = ['2023', '2024', '2025']
     trend = collections.defaultdict(lambda: collections.defaultdict(list))
     cellyears = collections.defaultdict(set); scored_cy = 0
     for row in yr:
@@ -250,8 +249,10 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
             trend[row[yi['year']]][row[yi['continent']]].append(float(s))
             cellyears[(row[yi['lat_cell']], row[yi['lon_cell']])].add(row[yi['year']])
             scored_cy += 1
+    YEARS = sorted(trend)  # all calendar years present, e.g. 2015-2025
+    NYEARS = len(YEARS)
     conts = sorted({c for y in trend for c in trend[y]})
-    n_all3 = sum(1 for v in cellyears.values() if len(v) >= 3)
+    n_all3 = sum(1 for v in cellyears.values() if len(v) >= NYEARS)
 
     cr = csv.reader(open('cell_change.csv', newline='')); ch = next(cr); kdir = ch.index('direction')
     cd = ch.index('delta'); deltas = []; dirc = collections.Counter()
@@ -260,7 +261,7 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     n_tracked = sum(dirc.values())
 
     fig = plt.figure(figsize=(11.69, 8.27))
-    fig.suptitle('Year-by-year (2023-2025): temporal slices of the metric', size=14, weight='bold')
+    fig.suptitle(f'Year-by-year ({YEARS[0]}-{YEARS[-1]}): temporal slices of the metric', size=14, weight='bold')
     # left: trend lines
     ax1 = fig.add_axes([0.07, 0.32, 0.42, 0.50])
     palette = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00']
@@ -281,10 +282,10 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     dip_first = gall[0][len(gall[0]) // 2] if gall[0] else float('nan')
     dip_last = gall[-1][len(gall[-1]) // 2] if gall[-1] else float('nan')
     note = (
-        f"COVERAGE: {scored_cy:,} scored cell-years; {n_tracked} cells scored in >=2 years, {n_all3} in all three.\n\n"
-        "CAUTION: a 3-year window cannot show real biodiversity change. These movements reflect\n"
+        f"COVERAGE: {scored_cy:,} scored cell-years; {n_tracked} cells scored in >=2 years, {n_all3} in all {NYEARS}.\n\n"
+        f"CAUTION: even an {NYEARS}-year window cannot show real biodiversity change. These movements reflect\n"
         "WHICH cells were recorded and by WHOM each year (effort + observer turnover), not\n"
-        f"ecological gain or loss. The global dip ({dip_first:.1f} -> {dip_last:.1f}) tracks recording effort, not nature.\n"
+        f"ecological gain or loss. The global change ({dip_first:.1f} -> {dip_last:.1f}) tracks recording effort, not nature.\n"
         "Use year slices to study sampling coverage over time -- not as a biodiversity time series.\n\n"
         "OUTPUTS: grid_cells_yearly.csv (per cell-year),  cell_change.csv (per tracked cell)."
     )
