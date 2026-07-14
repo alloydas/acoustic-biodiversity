@@ -2,7 +2,8 @@
 
 A global, location-level biodiversity metric derived from ~760k Xeno-canto wildlife
 recordings (2015–2025) and their metadata. See **[report/Acoustic_Biodiversity_Report.pdf](report/Acoustic_Biodiversity_Report.pdf)**
-for the full write-up, world map, and results.
+for the full write-up, world map, and results — or open the interactive
+**[web/year_explorer.html](web/year_explorer.html)** to scrub/play through the map year by year (2015–2025).
 
 ## The metric
 
