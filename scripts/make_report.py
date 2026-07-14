@@ -296,5 +296,75 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
 else:
     npages = 4
 
+# ---- Page 6: ten-year findings (2015-2025) ----
+# Synthesis page. All figures derived from the data at runtime; the only literal
+# is the reference |rho| from the smaller 2023-2025 subset (a documented prior).
+if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv'):
+    PRIOR_RHO = 0.16  # best |Spearman rho| on the 2023-2025 gap-inclusive subset
+
+    # global median effort-controlled richness per year (all continents pooled)
+    yr = csv.reader(open('grid_cells_yearly.csv', newline='')); yh = next(yr); yj = {c: i for i, c in enumerate(yh)}
+    by_year = collections.defaultdict(list); tracked_years = collections.defaultdict(set)
+    for row in yr:
+        s = row[yj['S_rare10']]
+        if s != '':
+            by_year[row[yj['year']]].append(float(s))
+            tracked_years[(row[yj['lat_cell']], row[yj['lon_cell']])].add(row[yj['year']])
+    F_YEARS = sorted(by_year)
+    F_NY = len(F_YEARS)
+    gmed = {y: sorted(v)[len(v) // 2] for y, v in by_year.items()}
+    med_series = [gmed[y] for y in F_YEARS]
+    flat_lo, flat_hi = min(med_series), max(med_series)
+    n_tracked2 = sum(1 for v in tracked_years.values() if len(v) >= 2)
+    n_all = sum(1 for v in tracked_years.values() if len(v) == F_NY)
+
+    cr = csv.reader(open('cell_change.csv', newline='')); ch = next(cr); kdir = ch.index('direction')
+    fdir = collections.Counter(row[kdir] for row in cr)
+    n_ch = sum(fdir.values())
+
+    fig = plt.figure(figsize=(8.27, 11.69))  # A4 portrait
+    fig.text(0.5, 0.955, 'Ten-Year Findings (2015-2025)', ha='center', size=18, weight='bold')
+    fig.text(0.5, 0.930, 'What the decade-scale data adds to the analysis', ha='center',
+             size=10, style='italic', color='#555')
+
+    findings = (
+        f"1.  MORE DATA MADE THE ACOUSTIC INDICES LOOK WORSE, NOT BETTER.\n"
+        f"    Expanding from the 2023-2025 subset to the full 2015-2025 archive\n"
+        f"    ({N_RECORDINGS:,} recordings, {N_USABLE:,} scored cells) shrank the best index\n"
+        f"    correlation from |rho| ~ {PRIOR_RHO:.2f} to ~ {BEST_RHO:.2f}. A real signal sharpens\n"
+        f"    with more data; this faded toward zero -- the strongest evidence yet\n"
+        f"    that the indices carry no site-biodiversity signal in this archive.\n\n"
+        f"2.  A DECADE OF EFFORT-CONTROLLED RICHNESS IS ESSENTIALLY FLAT.\n"
+        f"    Global median S_rare10 stays within {flat_lo:.1f}-{flat_hi:.1f} across all {F_NY} years\n"
+        f"    ({F_YEARS[0]}->{F_YEARS[-1]}: {med_series[0]:.1f} -> {med_series[-1]:.1f}). This reframes the metric as a\n"
+        f"    sampling-effort measure, not ecology. The only structure is a mild\n"
+        f"    recent dip that tracks the incompleteness of recent uploads.\n\n"
+        f"3.  TEMPORAL CHANGE IS A COIN-FLIP (RANDOM-WALK SIGNATURE).\n"
+        f"    Of {n_ch:,} cells tracked across >=2 years, {fdir['up']:,} rose and {fdir['down']:,} fell\n"
+        f"    (flat={fdir['flat']:,}). That near-perfect symmetry over a decade is the\n"
+        f"    fingerprint of observer turnover and noise, not directional change.\n\n"
+        f"4.  SPATIALLY DECADE-RICH, BUT TEMPORALLY STILL STARVED.\n"
+        f"    Coverage grew to {N_CELLS:,} cells / {N_USABLE:,} scored -- a much denser map --\n"
+        f"    yet only {n_all:,} cells were recorded in all {F_NY} years ({n_tracked2:,} in >=2).\n"
+        f"    The biodiversity MAP is far stronger; a true TIME SERIES remains\n"
+        f"    impossible from this data.\n"
+    )
+    fig.text(0.07, 0.90, findings, ha='left', va='top', size=9.2, family='monospace')
+
+    # inset: global median richness by year (drives home finding #2 -- flatness)
+    ax = fig.add_axes([0.14, 0.10, 0.74, 0.20])
+    ax.plot(F_YEARS, med_series, marker='o', color='#333', lw=2)
+    ax.axhspan(flat_lo, flat_hi, color='#4575b4', alpha=0.10)
+    ax.set_ylim(max(0, flat_lo - 3), flat_hi + 3)
+    ax.set_ylabel('Global median S_rare10'); ax.set_title(
+        f'Effort-controlled richness barely moves over {F_NY} years (band = {flat_lo:.1f}-{flat_hi:.1f})', size=9.5)
+    ax.grid(True, lw=0.3, color='#eee')
+    for lab in ax.get_xticklabels():
+        lab.set_rotation(45); lab.set_fontsize(8)
+
+    fig.text(0.5, 0.03, 'Acoustic Biodiversity Report  -  page 6  -  ten-year findings', ha='center', size=8, color='#999')
+    pp.savefig(fig); plt.close(fig)
+    npages += 1
+
 pp.close()
 print(f'wrote Acoustic_Biodiversity_Report.pdf  ({npages} pages)')
