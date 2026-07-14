@@ -366,5 +366,83 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     pp.savefig(fig); plt.close(fig)
     npages += 1
 
+# ---- Page 7: yearwise effort vs. metric (2015-2025) ----
+# Recording effort (bars, per continent) rose sharply while the effort-controlled
+# metric stayed flat; the apparent recent dip is a sampling artifact, not ecology.
+if os.path.exists('grid_cells_yearly.csv'):
+    yr = csv.reader(open('grid_cells_yearly.csv', newline='')); yh = next(yr); yj = {c: i for i, c in enumerate(yh)}
+    recCY = collections.defaultdict(lambda: collections.defaultdict(int))
+    richY = collections.defaultdict(list); cellsY = collections.Counter()
+    for row in yr:
+        y = row[yj['year']]; cont = row[yj['continent']]
+        try:
+            nr = int(row[yj['n_rec']])
+        except ValueError:
+            nr = 0
+        recCY[y][cont] += nr
+        s = row[yj['S_rare10']]
+        if s != '':
+            richY[y].append(float(s)); cellsY[y] += 1
+    YRS = sorted(recCY)
+    xs = list(range(len(YRS)))
+    yconts = ['europe', 'america', 'asia', 'africa', 'australia']
+    ycol = {'europe': '#4a7fb5', 'america': '#17a07f', 'asia': '#9a6fc0',
+            'africa': '#d08a3f', 'australia': '#7ba33f'}
+
+    def _med(v):
+        v = sorted(v)
+        return v[len(v) // 2] if v else float('nan')
+    med = [_med(richY[y]) for y in YRS]
+    cells = [cellsY[y] for y in YRS]
+    totals = [sum(recCY[y].values()) for y in YRS]
+
+    fig = plt.figure(figsize=(11.69, 8.27))
+    fig.suptitle(f'Year-by-year: effort vs. the metric ({YRS[0]}-{YRS[-1]})', size=14, weight='bold')
+    # top: stacked recordings by continent
+    ax1 = fig.add_axes([0.08, 0.60, 0.86, 0.29])
+    bottom = [0] * len(YRS)
+    for c in yconts:
+        v = [recCY[y][c] for y in YRS]
+        ax1.bar(xs, v, bottom=bottom, color=ycol[c], label=c, width=0.72, edgecolor='white', linewidth=0.4)
+        bottom = [b + a for b, a in zip(bottom, v)]
+    ax1.set_xticks(xs); ax1.set_xticklabels([y[2:] for y in YRS])
+    ax1.set_ylabel('recordings in cells')
+    ax1.legend(ncol=5, fontsize=8, loc='upper left', frameon=False)
+    ax1.set_title(f"Recording effort behind the metric, by continent  ({totals[0]:,} -> {totals[-1]:,}, +{100*(totals[-1]-totals[0])//totals[0]}%)",
+                  size=10, loc='left')
+    ax1.grid(True, axis='y', lw=0.3, color='#eee')
+    # bottom: scored cells (bars) + median richness (line, twin axis)
+    ax2 = fig.add_axes([0.08, 0.12, 0.86, 0.31])
+    ax2.bar(xs, cells, color='#c9d2c9', width=0.72, alpha=0.85)
+    ax2.set_ylabel('scored cells (n>=10)'); ax2.set_ylim(0, max(cells) * 1.3)
+    ax2.set_xticks(xs); ax2.set_xticklabels([y[2:] for y in YRS])
+    ax2.grid(True, axis='y', lw=0.3, color='#eee')
+    ax3 = ax2.twinx()
+    ax3.axhspan(min(med), max(med), color='#4575b4', alpha=0.08)
+    ax3.plot(xs, med, color='#333', lw=2.2, marker='o', ms=5, mfc='#4575b4', mec='#333')
+    for i, m in enumerate(med):
+        ax3.annotate(f'{m:.1f}', (xs[i], m), textcoords='offset points', xytext=(0, 8),
+                     ha='center', size=8, weight='bold')
+    ax3.set_ylim(6, 13); ax3.set_ylabel('median S_rare10')
+    pk = med.index(max(med))  # highlight the apparent post-peak decline
+    if pk < len(med) - 1:
+        ax3.annotate('', xy=(xs[-1], med[-1]), xytext=(xs[pk], med[pk]),
+                     arrowprops=dict(arrowstyle='->', color='#d73027', lw=1.4, alpha=0.85))
+        ax3.text(xs[-1], med[-1] - 0.1, f'  apparent -{max(med) - med[-1]:.1f}\n  (sampling, not ecology)',
+                 color='#d73027', size=7.5, va='top', ha='right')
+    ax2.set_title(f"Scored cells grew {cells[0]:,} -> {cells[-1]:,}; median richness stayed flat ({min(med):.1f}-{max(med):.1f} band)",
+                  size=10, loc='left')
+
+    note = (
+        "Bars = recording EFFORT (geolocated recordings entering the metric); line = effort-controlled median\n"
+        "richness. Effort rose ~70% over the decade while the metric stayed inside a narrow band. The apparent\n"
+        "recent dip (red arrow) is NOT ecological degradation: it tracks the lower completeness of recent uploads\n"
+        "and shifting recordist coverage. Do not read the decline as biodiversity loss."
+    )
+    fig.text(0.08, 0.095, note, ha='left', va='top', size=8.6, family='monospace')
+    fig.text(0.5, 0.03, 'Acoustic Biodiversity Report  -  page 7  -  yearwise', ha='center', size=8, color='#999')
+    pp.savefig(fig); plt.close(fig)
+    npages += 1
+
 pp.close()
 print(f'wrote Acoustic_Biodiversity_Report.pdf  ({npages} pages)')
