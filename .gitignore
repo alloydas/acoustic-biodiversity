@@ -8,3 +8,4 @@ score_*.csv
 metadata_*.csv
 __pycache__/
 *.pyc
+recordings_urban_class.csv

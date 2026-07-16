@@ -58,6 +58,27 @@ slices as sampling-coverage diagnostics, not a biodiversity time series. 2,697 c
 trackable across ≥2 years (only 10 across all eleven), and per-cell change is a near coin-flip
 (1,176 up / 1,188 down / 333 flat) — the signature of noise, not a trend.
 
+## Urban classification (city / town / rural)
+
+Each georeferenced recording (2015–2022) is tagged **city / town / rural** by point-in-polygon
+against the **GCTB** (Global City & Town Boundaries, 30 m, WGS-84; Liu, Zhang & Bai, Zenodo
+`10.5281/zenodo.16418717`, CC-BY-4.0) annual polygons — matched to each recording's *own* year
+(`Cities_2018` for a 2018 recording, etc.). GCTB stops at 2022; `city` takes priority over `town`
+on overlap; `rural` is the residual (inside neither, i.e. not in a mapped built-up extent).
+
+Globally 510,923 recordings classify as **9.4 % city / 2.5 % town / 88.1 % rural**. India
+(figures below) is **~92 % rural** — city recordings cluster in Delhi/NCR, the Mumbai–Pune
+corridor, the Western Ghats, Bangalore and Kolkata.
+
+| output | contents |
+|---|---|
+| `outputs/urban_class_summary.csv` | per-class count + mean/median of 12 key indices (all years) |
+| `outputs/urban_class_by_year.csv` | per `year × class` count + index means/medians (2015–2022) |
+| `figures/india_recordings_yearwise.png` | India recordings per year + city/town/rural split |
+| `figures/india_recordings_map.png` | India map, recordings coloured by class |
+
+![India recordings by urban class](figures/india_recordings_map.png)
+
 ## Reproduce
 
 ```bash
@@ -69,4 +90,8 @@ python3 scripts/build_cells.py           # produces grid_cells.csv + correlation
 python3 scripts/build_cells_yearly.py    # produces grid_cells_yearly.csv + cell_change.csv
 python3 scripts/build_labels.py          # produces grid_cells_labeled*.csv + biodiversity_map.csv
 python3 scripts/make_report.py           # produces the PDF
+
+# urban classification (needs a geopandas env; GCTB polygons in ../GCTB/)
+python3 scripts/classify_urban.py        # -> recordings_urban_class.csv + urban_class_*.csv
+python3 scripts/plot_india.py            # -> figures/india_recordings_*.png
 ```
