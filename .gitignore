@@ -9,3 +9,4 @@ metadata_*.csv
 __pycache__/
 *.pyc
 recordings_urban_class.csv
+recordings_ecoregion.csv

@@ -17,7 +17,7 @@ for the full write-up, world map, and results — or open the interactive
 ## Headline finding
 
 The 42 acoustic indices (ACI, ADI, NDSI, Bioacoustic Index, …) **do not predict species
-richness** on this archive (best Spearman ρ ≈ 0.13). They were designed for passive
+richness** on this archive (best Spearman ρ ≈ 0.09). They were designed for passive
 soundscape monitoring, but 69% of the archive is single-target recordings (median 24 s).
 The defensible biodiversity metric is therefore **effort-controlled species richness from
 the metadata**, not any acoustic index. Full limitations are in the report.
@@ -79,6 +79,49 @@ corridor, the Western Ghats, Bangalore and Kolkata.
 
 ![India recordings by urban class](figures/india_recordings_map.png)
 
+## Ecoregion / biome classification
+
+Every georeferenced recording is tagged with its terrestrial **ecoregion, biome and
+biogeographic realm** by point-in-polygon. Unlike the urban layer, ecoregions carry no year
+dimension, so **all 745,648 recordings with coordinates** are classified (the urban layer is
+capped at 510,923 by GCTB's 2022 cutoff).
+
+Two reference layers are applied to the same points:
+
+* **RESOLVE Ecoregions 2017** (Dinerstein et al. 2017, CC-BY-4.0) — 847 polygons, primary.
+* **WWF TEOW 2001** (Olson et al. 2001, CC-BY-NC-3.0) — 14,458 polygon parts over 827
+  ecoregions; the layer published on Data Basin. Kept for comparison.
+
+The two agree on biome for **96.7 %** of the 741,234 doubly-labelled recordings. Matching is
+703,907 exact, 37,592 via a ≤0.1° nearest-polygon fallback (coastal/island GPS offsets), and
+4,149 unassigned (offshore).
+
+Sampling is heavily skewed: **42 % Temperate Broadleaf & Mixed Forests** and **55 % Palearctic**.
+Data completeness is *not* uniform across biomes — 94.4 % of labelled recordings carry all 40
+index columns, but Mediterranean Forests drops to 84.8 % and the Palearctic realm to 91.8 %,
+reflecting where the European processing runs failed. Any biome comparison inherits that
+uneven sample.
+
+| output | contents |
+|---|---|
+| `outputs/ecoregion_biome_summary.csv` | per biome: n + mean/median of 12 key indices |
+| `outputs/ecoregion_realm_summary.csv` | per realm |
+| `outputs/ecoregion_summary.csv` | per ecoregion (n ≥ 30; 639 of 847) |
+| `outputs/biome_data_counts.csv` | per biome: n + complete-case counts + per-metric valid counts |
+| `outputs/realm_data_counts.csv` | same, per realm |
+| `outputs/ecoregion_data_counts.csv` | same, per ecoregion |
+| `outputs/biome_usable_counts.csv` | per biome usable counts after the degenerate-row guard |
+
+The per-recording table (`recordings_ecoregion.csv`, 191 MB) is gitignored — regenerate it with
+`scripts/classify_ecoregion.py`.
+
+**Caveat.** ACI separates biomes strongly (relative range 96 %), but the ordering is inverted
+against expected richness and *within*-biome spread exceeds *between*-biome spread (Iberian
+sclerophyllous 5796 vs NE-Spain Mediterranean 1465 — both Mediterranean). That points to
+recordist, equipment and target-species effects dominating habitat signal, consistent with the
+archive being mostly short focal recordings. Do not read the biome means as habitat acoustics
+without controlling for recordist and recording length.
+
 ## Reproduce
 
 ```bash
@@ -94,4 +137,8 @@ python3 scripts/make_report.py           # produces the PDF
 # urban classification (needs a geopandas env; GCTB polygons in ../GCTB/)
 python3 scripts/classify_urban.py        # -> recordings_urban_class.csv + urban_class_*.csv
 python3 scripts/plot_india.py            # -> figures/india_recordings_*.png
+
+# ecoregion / biome classification (same geopandas env; shapefiles in ../ECOREGIONS/)
+python3 scripts/classify_ecoregion.py    # -> recordings_ecoregion.csv + ecoregion_*.csv
+python3 scripts/biome_counts.py          # -> biome/realm/ecoregion data-completeness counts
 ```

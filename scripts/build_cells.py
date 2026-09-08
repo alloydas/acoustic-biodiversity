@@ -33,6 +33,24 @@ INDICES = [
     'Spectral_Entropy_NR__main_value',
 ]
 
+# Guard column. A decoded-but-silent/degenerate recording yields ZCR__mean == 0
+# exactly, which real audio never does (any non-constant waveform crosses zero).
+# On those files the spectrogram-derived indices come back blank (ACI is NaN in
+# 22,006 of the 22,007 such rows), but the few indices that are still defined on
+# an all-zero signal return a hard 0 -- ADI == 0 in 21,991 and NB_peaks == 0 in
+# 21,982 of them. Those zeros are not measurements, and averaging them in drags
+# the ADI and NB_peaks cell means toward zero. So we drop a degenerate row's
+# index contributions wholesale.
+#
+# The row is still counted in n_rec and still contributes its species, because
+# those come from the metadata join and are unaffected by the audio failure.
+#
+# This is deliberately narrow: ZCR__mean == 0 catches the degenerate class while
+# preserving genuine zeros elsewhere -- 203 rows have a real ADI == 0 (energy in
+# a single frequency band gives Shannon entropy 0 by definition) and 11,311 have
+# a real NB_peaks == 0 (no peaks detected). Those are kept.
+DEGENERATE_GUARD = 'ZCR__mean'
+
 
 def fnum(s):
     try:
@@ -55,7 +73,7 @@ cells = collections.defaultdict(lambda: {
     'sp_incidence': collections.Counter(),  # species -> # recordings containing it
 })
 
-total = skipped_coord = 0
+total = skipped_coord = degenerate = 0
 for cont, path in FILES.items():
     with open(path, newline='') as f:
         r = csv.reader(f)
@@ -81,13 +99,20 @@ for cont, path in FILES.items():
                     sp.add(a)
             for s in sp:
                 c['sp_incidence'][s] += 1
-            for idx in INDICES:
-                v = fnum(row[ci[idx]])
-                if v is not None and not math.isnan(v):
-                    c['sums'][idx] += v
-                    c['cnts'][idx] += 1
+            zcr = fnum(row[ci[DEGENERATE_GUARD]]) if DEGENERATE_GUARD in ci else None
+            if zcr == 0:
+                degenerate += 1
+            else:
+                for idx in INDICES:
+                    v = fnum(row[ci[idx]])
+                    # isfinite, not `not isnan`: math.isnan(inf) is False, so an
+                    # inf would otherwise pass and make the whole cell sum inf.
+                    if v is not None and math.isfinite(v):
+                        c['sums'][idx] += v
+                        c['cnts'][idx] += 1
 
 print(f'recordings read: {total}   skipped (no coord): {skipped_coord}')
+print(f'degenerate (silent audio, indices excluded from means): {degenerate}')
 print(f'grid cells (0.1 deg): {len(cells)}')
 
 
