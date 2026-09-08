@@ -111,6 +111,8 @@ uneven sample.
 | `outputs/realm_data_counts.csv` | same, per realm |
 | `outputs/ecoregion_data_counts.csv` | same, per ecoregion |
 | `outputs/biome_usable_counts.csv` | per biome usable counts after the degenerate-row guard |
+| `outputs/biome_yearly.csv` | per biome x year: cell-years, recordings, median/mean S_rare10 |
+| `outputs/biome_change.csv` | per biome: first vs last year median, delta, tracked-cell up/down/flat |
 
 The per-recording table (`recordings_ecoregion.csv`, 191 MB) is gitignored — regenerate it with
 `scripts/classify_ecoregion.py`.
@@ -121,6 +123,11 @@ sclerophyllous 5796 vs NE-Spain Mediterranean 1465 — both Mediterranean). That
 recordist, equipment and target-species effects dominating habitat signal, consistent with the
 archive being mostly short focal recordings. Do not read the biome means as habitat acoustics
 without controlling for recordist and recording length.
+
+**Year-by-year change by biome** (report page 8) shows **no biome with coherent directional
+change**: each biome's year-to-year jitter is as large as its 2015→2025 delta, and tracked
+cells split near 50/50 inside every biome (1,111 up vs 1,099 down overall). The biomes with
+the fewest recordings swing hardest — the signature of small samples, not habitat change.
 
 ## Reproduce
 
@@ -141,4 +148,5 @@ python3 scripts/plot_india.py            # -> figures/india_recordings_*.png
 # ecoregion / biome classification (same geopandas env; shapefiles in ../ECOREGIONS/)
 python3 scripts/classify_ecoregion.py    # -> recordings_ecoregion.csv + ecoregion_*.csv
 python3 scripts/biome_counts.py          # -> biome/realm/ecoregion data-completeness counts
+python3 scripts/build_biome_yearly.py    # -> biome_yearly.csv + biome_change.csv (report p8)
 ```

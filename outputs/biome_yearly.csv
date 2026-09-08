@@ -1,0 +1,155 @@
+biome_name,year,n_cell_years,n_recordings,n_scored_cells,median_S_rare10,mean_S_rare10
+Boreal Forests/Taiga,2015,160,933,21,8.885,10.865
+Boreal Forests/Taiga,2016,158,631,15,8.242,11.655
+Boreal Forests/Taiga,2017,175,1003,29,12.091,12.788
+Boreal Forests/Taiga,2018,250,2467,61,7.347,8.581
+Boreal Forests/Taiga,2019,264,1782,37,12.002,11.283
+Boreal Forests/Taiga,2020,234,2449,43,11.273,13.821
+Boreal Forests/Taiga,2021,305,4125,68,11.239,12.214
+Boreal Forests/Taiga,2022,262,2916,48,11.616,12.854
+Boreal Forests/Taiga,2023,288,2171,36,11.595,11.721
+Boreal Forests/Taiga,2024,311,1546,37,9.879,11.165
+Boreal Forests/Taiga,2025,357,4426,62,9.844,12.146
+Deserts & Xeric Shrublands,2015,391,2880,55,11.235,12.954
+Deserts & Xeric Shrublands,2016,427,1875,42,10.926,11.765
+Deserts & Xeric Shrublands,2017,433,2245,63,8.788,9.967
+Deserts & Xeric Shrublands,2018,403,2148,60,9.207,10.342
+Deserts & Xeric Shrublands,2019,454,2215,62,10.113,10.685
+Deserts & Xeric Shrublands,2020,340,2962,50,13.082,14.29
+Deserts & Xeric Shrublands,2021,360,3257,71,8.561,9.32
+Deserts & Xeric Shrublands,2022,361,6816,61,9.0,10.66
+Deserts & Xeric Shrublands,2023,350,1977,43,7.949,10.15
+Deserts & Xeric Shrublands,2024,309,1902,43,8.14,9.875
+Deserts & Xeric Shrublands,2025,267,1272,35,7.4,8.442
+Flooded Grasslands & Savannas,2015,42,370,8,10.802,10.759
+Flooded Grasslands & Savannas,2016,65,565,8,9.875,11.593
+Flooded Grasslands & Savannas,2017,47,243,6,12.998,13.982
+Flooded Grasslands & Savannas,2018,37,110,1,20.446,20.446
+Flooded Grasslands & Savannas,2019,53,1227,7,8.568,10.927
+Flooded Grasslands & Savannas,2020,27,171,6,9.06,11.039
+Flooded Grasslands & Savannas,2021,22,91,1,22.787,22.787
+Flooded Grasslands & Savannas,2022,48,382,10,8.998,10.825
+Flooded Grasslands & Savannas,2023,31,204,6,8.755,12.822
+Flooded Grasslands & Savannas,2024,28,150,3,9.258,16.729
+Flooded Grasslands & Savannas,2025,34,241,4,13.598,14.805
+Mangroves,2015,56,278,10,10.395,11.021
+Mangroves,2016,58,311,9,11.885,12.097
+Mangroves,2017,66,410,14,9.362,10.289
+Mangroves,2018,76,568,12,9.654,9.912
+Mangroves,2019,72,575,11,10.359,10.98
+Mangroves,2020,59,987,13,10.148,12.043
+Mangroves,2021,62,356,12,8.591,9.861
+Mangroves,2022,58,235,6,5.268,5.299
+Mangroves,2023,59,403,10,9.412,8.866
+Mangroves,2024,74,737,20,8.148,8.874
+Mangroves,2025,66,534,10,9.002,9.037
+"Mediterranean Forests, Woodlands & Scrub",2015,630,5623,102,8.382,9.405
+"Mediterranean Forests, Woodlands & Scrub",2016,727,5750,113,10.621,11.731
+"Mediterranean Forests, Woodlands & Scrub",2017,739,8368,165,9.611,11.487
+"Mediterranean Forests, Woodlands & Scrub",2018,664,5369,108,8.975,10.601
+"Mediterranean Forests, Woodlands & Scrub",2019,782,6594,143,8.0,8.422
+"Mediterranean Forests, Woodlands & Scrub",2020,842,10354,161,10.165,11.269
+"Mediterranean Forests, Woodlands & Scrub",2021,918,9175,160,10.0,10.381
+"Mediterranean Forests, Woodlands & Scrub",2022,985,10090,203,8.702,9.59
+"Mediterranean Forests, Woodlands & Scrub",2023,1010,10245,185,8.516,9.254
+"Mediterranean Forests, Woodlands & Scrub",2024,901,7366,162,9.23,9.916
+"Mediterranean Forests, Woodlands & Scrub",2025,896,10008,212,8.614,9.116
+Montane Grasslands & Shrublands,2015,111,991,28,8.487,8.623
+Montane Grasslands & Shrublands,2016,104,417,10,8.556,10.669
+Montane Grasslands & Shrublands,2017,100,720,9,9.558,9.328
+Montane Grasslands & Shrublands,2018,174,764,18,11.883,11.694
+Montane Grasslands & Shrublands,2019,237,1626,45,9.409,11.21
+Montane Grasslands & Shrublands,2020,124,878,23,17.801,14.827
+Montane Grasslands & Shrublands,2021,169,1126,30,14.335,14.803
+Montane Grasslands & Shrublands,2022,157,936,30,8.949,11.702
+Montane Grasslands & Shrublands,2023,145,796,15,8.726,8.958
+Montane Grasslands & Shrublands,2024,127,909,18,7.737,7.651
+Montane Grasslands & Shrublands,2025,101,713,19,8.382,8.925
+Temperate Broadleaf & Mixed Forests,2015,1813,13906,223,10.507,11.372
+Temperate Broadleaf & Mixed Forests,2016,1981,15857,253,10.0,11.287
+Temperate Broadleaf & Mixed Forests,2017,2096,18463,294,11.076,11.995
+Temperate Broadleaf & Mixed Forests,2018,2075,16488,293,9.536,10.589
+Temperate Broadleaf & Mixed Forests,2019,2696,23327,413,9.788,10.662
+Temperate Broadleaf & Mixed Forests,2020,3500,40325,663,9.551,10.774
+Temperate Broadleaf & Mixed Forests,2021,3597,41807,743,10.091,11.242
+Temperate Broadleaf & Mixed Forests,2022,3126,34373,593,10.163,11.225
+Temperate Broadleaf & Mixed Forests,2023,3278,32974,640,10.0,11.186
+Temperate Broadleaf & Mixed Forests,2024,3294,36210,613,9.626,10.643
+Temperate Broadleaf & Mixed Forests,2025,3220,40890,609,9.228,10.264
+Temperate Conifer Forests,2015,450,2508,61,9.121,10.913
+Temperate Conifer Forests,2016,437,1388,25,9.571,10.698
+Temperate Conifer Forests,2017,494,1865,44,8.16,8.609
+Temperate Conifer Forests,2018,415,3583,32,9.925,10.247
+Temperate Conifer Forests,2019,469,2745,59,8.723,9.053
+Temperate Conifer Forests,2020,479,2486,55,9.788,10.083
+Temperate Conifer Forests,2021,473,3911,69,9.751,10.029
+Temperate Conifer Forests,2022,402,3059,61,8.956,9.628
+Temperate Conifer Forests,2023,365,1484,32,8.782,9.808
+Temperate Conifer Forests,2024,357,2000,42,8.443,8.725
+Temperate Conifer Forests,2025,320,2337,48,9.627,10.176
+"Temperate Grasslands, Savannas & Shrublands",2015,340,1627,39,11.316,11.699
+"Temperate Grasslands, Savannas & Shrublands",2016,417,2219,54,11.189,11.51
+"Temperate Grasslands, Savannas & Shrublands",2017,376,1738,40,9.636,11.254
+"Temperate Grasslands, Savannas & Shrublands",2018,325,1425,40,11.508,11.298
+"Temperate Grasslands, Savannas & Shrublands",2019,310,1461,23,9.884,10.228
+"Temperate Grasslands, Savannas & Shrublands",2020,297,1614,33,10.399,11.003
+"Temperate Grasslands, Savannas & Shrublands",2021,251,1237,27,8.632,8.439
+"Temperate Grasslands, Savannas & Shrublands",2022,321,1804,37,8.0,8.84
+"Temperate Grasslands, Savannas & Shrublands",2023,315,1643,37,9.285,9.758
+"Temperate Grasslands, Savannas & Shrublands",2024,283,1632,33,9.846,10.151
+"Temperate Grasslands, Savannas & Shrublands",2025,236,1437,37,9.182,10.633
+Tropical & Subtropical Coniferous Forests,2015,136,1633,41,9.977,11.781
+Tropical & Subtropical Coniferous Forests,2016,121,1273,36,10.445,11.047
+Tropical & Subtropical Coniferous Forests,2017,93,718,25,10.651,11.402
+Tropical & Subtropical Coniferous Forests,2018,98,735,13,11.326,13.429
+Tropical & Subtropical Coniferous Forests,2019,100,937,16,10.179,13.497
+Tropical & Subtropical Coniferous Forests,2020,51,522,15,8.985,11.703
+Tropical & Subtropical Coniferous Forests,2021,78,555,18,8.936,10.684
+Tropical & Subtropical Coniferous Forests,2022,69,375,10,9.068,11.763
+Tropical & Subtropical Coniferous Forests,2023,80,593,14,10.325,11.081
+Tropical & Subtropical Coniferous Forests,2024,80,783,22,9.717,9.988
+Tropical & Subtropical Coniferous Forests,2025,53,277,8,10.996,11.166
+Tropical & Subtropical Dry Broadleaf Forests,2015,242,1845,53,9.47,10.47
+Tropical & Subtropical Dry Broadleaf Forests,2016,251,1613,45,10.455,11.36
+Tropical & Subtropical Dry Broadleaf Forests,2017,250,1849,51,9.713,10.248
+Tropical & Subtropical Dry Broadleaf Forests,2018,209,1634,29,12.0,14.281
+Tropical & Subtropical Dry Broadleaf Forests,2019,221,1797,37,11.733,15.183
+Tropical & Subtropical Dry Broadleaf Forests,2020,186,2190,31,11.32,12.317
+Tropical & Subtropical Dry Broadleaf Forests,2021,213,2167,44,11.703,11.891
+Tropical & Subtropical Dry Broadleaf Forests,2022,204,2924,38,10.067,11.566
+Tropical & Subtropical Dry Broadleaf Forests,2023,181,1207,28,9.738,11.019
+Tropical & Subtropical Dry Broadleaf Forests,2024,183,5990,35,9.869,10.816
+Tropical & Subtropical Dry Broadleaf Forests,2025,190,1378,36,9.502,11.154
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2015,377,3653,89,9.459,11.047
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2016,370,2749,79,9.853,11.503
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2017,427,3167,83,9.957,11.216
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2018,482,3912,98,10.628,11.705
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2019,450,3793,89,9.924,11.657
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2020,296,2978,51,10.0,12.081
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2021,308,3922,65,12.095,13.903
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2022,455,4615,103,9.842,11.601
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2023,421,5260,104,9.805,12.376
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2024,453,4316,87,10.0,12.921
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",2025,369,2961,75,9.6,10.778
+Tropical & Subtropical Moist Broadleaf Forests,2015,1272,12815,295,9.819,11.04
+Tropical & Subtropical Moist Broadleaf Forests,2016,1312,11010,307,9.953,11.054
+Tropical & Subtropical Moist Broadleaf Forests,2017,1492,13365,333,9.881,10.979
+Tropical & Subtropical Moist Broadleaf Forests,2018,1431,11460,263,10.0,11.235
+Tropical & Subtropical Moist Broadleaf Forests,2019,1535,15168,329,9.652,10.163
+Tropical & Subtropical Moist Broadleaf Forests,2020,1174,10088,225,9.973,11.472
+Tropical & Subtropical Moist Broadleaf Forests,2021,1251,10004,227,10.346,11.196
+Tropical & Subtropical Moist Broadleaf Forests,2022,1407,13964,314,10.0,10.951
+Tropical & Subtropical Moist Broadleaf Forests,2023,1399,13187,309,10.091,11.489
+Tropical & Subtropical Moist Broadleaf Forests,2024,1328,14747,359,9.639,10.696
+Tropical & Subtropical Moist Broadleaf Forests,2025,1275,15616,332,9.584,10.657
+Tundra,2015,81,435,13,5.669,6.291
+Tundra,2016,62,426,13,7.353,7.158
+Tundra,2017,94,748,17,9.425,9.498
+Tundra,2018,95,303,6,11.367,10.827
+Tundra,2019,65,230,5,10.421,10.588
+Tundra,2020,61,235,7,9.297,9.238
+Tundra,2021,89,1039,14,7.773,8.425
+Tundra,2022,63,464,9,7.227,6.843
+Tundra,2023,109,370,6,7.597,8.425
+Tundra,2024,98,315,6,3.619,4.92
+Tundra,2025,89,418,9,7.605,8.432

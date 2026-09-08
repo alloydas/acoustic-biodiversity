@@ -444,5 +444,116 @@ if os.path.exists('grid_cells_yearly.csv'):
     pp.savefig(fig); plt.close(fig)
     npages += 1
 
+# ---- Page 8: biome-wise year-by-year change (2015-2025) ----
+# Splits the yearly richness series by BIOME. Cells take the modal biome of their
+# recordings (build_biome_yearly.py); 99.4% of recordings sit in their cell's
+# modal biome, so the assignment is near-unambiguous.
+if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
+    import numpy as _np
+
+    br = list(csv.DictReader(open('biome_yearly.csv', newline='')))
+    bc = list(csv.DictReader(open('biome_change.csv', newline='')))
+    B_YEARS = sorted({r['year'] for r in br})
+    B_ORDER = [r['biome_name'] for r in bc]   # most recordings first
+    lookup = {(r['biome_name'], r['year']): r for r in br}
+    MINC = 5
+
+    grid = _np.full((len(B_ORDER), len(B_YEARS)), _np.nan)
+    for i, b in enumerate(B_ORDER):
+        for j, y in enumerate(B_YEARS):
+            r = lookup.get((b, y))
+            if r and r['median_S_rare10'] != '' and int(r['n_scored_cells']) >= MINC:
+                grid[i, j] = float(r['median_S_rare10'])
+    gmid = _np.nanmedian(grid)
+
+    fig = plt.figure(figsize=(8.27, 11.69))  # A4 portrait
+    fig.text(0.5, 0.962, 'Year-by-Year Change by Biome (2015-2025)',
+             ha='center', size=16, weight='bold')
+    fig.text(0.5, 0.940, 'Effort-controlled richness (S_rare10) split by terrestrial biome',
+             ha='center', size=9, style='italic', color='#555')
+
+    L, W = 0.335, 0.545        # shared left edge / width for both panels
+    # ---- heatmap ----
+    axh = fig.add_axes([L, 0.605, W, 0.295])
+    im = axh.imshow(grid, aspect='auto', cmap='RdYlBu', vmin=gmid - 3, vmax=gmid + 3)
+    axh.set_xticks(range(len(B_YEARS)))
+    axh.set_xticklabels([y[2:] for y in B_YEARS], size=8)
+    axh.set_yticks(range(len(B_ORDER)))
+    axh.set_yticklabels([b[:40] for b in B_ORDER], size=7.2)
+    for i in range(len(B_ORDER)):
+        for j in range(len(B_YEARS)):
+            v = grid[i, j]
+            if _np.isnan(v):
+                col = '#bbb'
+            else:
+                # white text on the saturated ends of the colormap, dark in the middle
+                col = 'white' if abs(v - gmid) > 2.2 else '#222'
+            axh.text(j, i, '-' if _np.isnan(v) else f'{v:.1f}', ha='center',
+                     va='center', size=6.0, color=col,
+                     weight='bold' if not _np.isnan(v) and abs(v - gmid) > 2.2 else 'normal')
+    axh.set_title(f'Median S_rare10 per biome-year   (- = fewer than {MINC} scored cells)',
+                  size=9, loc='left')
+    cax = fig.add_axes([L + W + 0.075, 0.605, 0.014, 0.295])
+    cb = fig.colorbar(im, cax=cax); cb.ax.tick_params(labelsize=7)
+
+    # ---- delta column, same row order as the heatmap ----
+    axd = fig.add_axes([L + W + 0.005, 0.605, 0.062, 0.295]); axd.axis('off')
+    axd.set_ylim(len(B_ORDER) - 0.5, -0.5)   # match imshow row coords exactly
+    axd.set_xlim(0, 1)
+    axd.text(0.5, -0.9, 'delta', ha='center', size=7.5, weight='bold')
+    for i, r in enumerate(bc):
+        d = float(r['delta'])
+        axd.text(0.5, i, f'{d:+.1f}', ha='center', va='center', size=7.2,
+                 color='#d73027' if d < -0.5 else ('#1a9850' if d > 0.5 else '#888'),
+                 weight='bold' if abs(d) > 0.5 else 'normal')
+
+    # ---- tracked-cell direction split (same order, labels shared above) ----
+    axb = fig.add_axes([L, 0.395, W, 0.155])
+    ys = _np.arange(len(B_ORDER))
+    up = _np.array([int(r['cells_up']) for r in bc], float)
+    dn = _np.array([int(r['cells_down']) for r in bc], float)
+    fl = _np.array([int(r['cells_flat']) for r in bc], float)
+    tot = _np.maximum(up + dn + fl, 1)
+    axb.barh(ys, 100 * up / tot, color='#1a9850', label='up', height=0.78)
+    axb.barh(ys, 100 * fl / tot, left=100 * up / tot, color='#dcdcdc', label='flat', height=0.78)
+    axb.barh(ys, 100 * dn / tot, left=100 * (up + fl) / tot, color='#d73027', label='down', height=0.78)
+    axb.axvline(50, color='#333', lw=1.0, ls='--', alpha=0.75)
+    axb.set_ylim(len(B_ORDER) - 0.5, -0.5)   # top-to-bottom, matching the heatmap
+    axb.set_yticks(ys); axb.set_yticklabels([])
+    axb.set_xlim(0, 100); axb.set_xlabel('% of individually tracked cells', size=8)
+    axb.tick_params(labelsize=7.5)
+    axb.legend(ncol=3, fontsize=7, loc='upper center',
+               bbox_to_anchor=(0.5, -0.22), frameon=False)
+    for i, r in enumerate(bc):
+        n = int(r['cells_up']) + int(r['cells_down']) + int(r['cells_flat'])
+        axb.text(101.5, i, f'n={n}', va='center', size=6.2, color='#777')
+    axb.set_title('Direction of change, cells tracked across >=2 years  (dashed = 50/50)',
+                  size=9, loc='left')
+
+    # ---- narrative, full width below both panels ----
+    worst = max(bc, key=lambda r: abs(float(r['delta'])))
+    t_up = sum(int(r['cells_up']) for r in bc)
+    t_dn = sum(int(r['cells_down']) for r in bc)
+    note = (
+        "NO BIOME SHOWS COHERENT DIRECTIONAL CHANGE.\n\n"
+        f"Every biome's year-to-year jitter is as large as its {B_YEARS[0]}->{B_YEARS[-1]} delta, and the cells\n"
+        f"tracked inside each biome split close to 50/50 ({t_up:,} up vs {t_dn:,} down overall). The\n"
+        f"largest delta -- {worst['biome_name'][:38]} at {float(worst['delta']):+.1f} -- rests on a series\n"
+        "that swings by more than that between adjacent years.\n\n"
+        "READ THIS AS SAMPLING, NOT ECOLOGY. S_rare10 controls for the NUMBER of recordings in\n"
+        "a cell, but not for who recorded, for how long, or with what target. A biome's series\n"
+        "therefore moves as its recordist community turns over. The biomes with the fewest\n"
+        "recordings -- Tundra, Mangroves, Flooded Grasslands -- swing hardest, which is the\n"
+        "signature of small samples rather than of habitat change.\n\n"
+        "METHOD. Each 0.1-degree cell takes the modal biome of the recordings inside it. 99.4% of\n"
+        "recordings fall in their cell's modal biome and only 1.6% of cells span more than one,\n"
+        "so boundary cells cannot drive these patterns. Biomes are ordered by recording volume."
+    )
+    fig.text(0.075, 0.315, note, ha='left', va='top', size=8.2, family='monospace')
+    fig.text(0.5, 0.028, 'Acoustic Biodiversity Report  -  page 8  -  biome-wise yearly change',
+             ha='center', size=8, color='#999')
+    pp.savefig(fig); plt.close(fig)
+    npages += 1
+
 pp.close()
 print(f'wrote Acoustic_Biodiversity_Report.pdf  ({npages} pages)')
