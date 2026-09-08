@@ -1,0 +1,4 @@
+urban_class,first_year,last_year,first_median,last_median,delta_full,labelled_first_year,labelled_last_year,delta_labelled_window,total_recordings,cells_up,cells_down,cells_flat
+city,2015,2025,10.0,9.189,-0.811,2015,2022,-0.164,69783,109,103,37
+town,2015,2025,10.808,10.849,0.041,2015,2022,-1.742,16686,27,20,9
+rural,2015,2025,9.641,9.325,-0.316,2015,2022,0.201,594334,945,945,254

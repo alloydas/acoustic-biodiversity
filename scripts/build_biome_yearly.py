@@ -110,6 +110,14 @@ with open('biome_yearly.csv', 'w', newline='') as f:
                         '' if not st['rich'] else round(sum(st['rich']) / len(st['rich']), 3)])
 print('wrote biome_yearly.csv')
 
+# ---- per-cell biome table (drives the biome map on report page 11) ----
+with open('cell_biome.csv', 'w', newline='') as f:
+    w = csv.writer(f)
+    w.writerow(['lat_cell', 'lon_cell', 'biome_name', 'n_recordings', 'n_biomes_in_cell'])
+    for k, c in sorted(votes.items()):
+        w.writerow([k[0] / 10, k[1] / 10, c.most_common(1)[0][0], sum(c.values()), len(c)])
+print(f'wrote cell_biome.csv ({len(votes):,} cells)')
+
 # ---- per-biome first-vs-last change, plus the tracked-cell up/down split ----
 dir_by_biome = collections.defaultdict(collections.Counter)
 with open('cell_change.csv', newline='') as f:

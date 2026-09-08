@@ -555,5 +555,227 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
     pp.savefig(fig); plt.close(fig)
     npages += 1
 
+# ---- Page 9: each biome's series on its own axes (small multiples) ----
+# The page-8 heatmap compares biomes; this page reads each biome one at a time,
+# with its own recording effort behind it so jitter can be traced to sample size.
+if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
+    import numpy as _np
+
+    br9 = list(csv.DictReader(open('biome_yearly.csv', newline='')))
+    bc9 = list(csv.DictReader(open('biome_change.csv', newline='')))
+    Y9 = sorted({r['year'] for r in br9})
+    ORDER9 = [r['biome_name'] for r in bc9]
+    look9 = {(r['biome_name'], r['year']): r for r in br9}
+    MINC9 = 5
+
+    ncol, nrow = 3, 5
+    fig = plt.figure(figsize=(8.27, 11.69))
+    fig.text(0.5, 0.968, 'Each Biome, Year by Year (2015-2025)', ha='center',
+             size=16, weight='bold')
+    fig.text(0.5, 0.947,
+             'Line = median S_rare10 (left axis).  Bars = recordings entering the metric (right axis).',
+             ha='center', size=8.5, style='italic', color='#555')
+
+    xs9 = _np.arange(len(Y9))
+    for i, b in enumerate(ORDER9):
+        rr, cc = divmod(i, ncol)
+        ax = fig.add_axes([0.085 + cc * 0.305, 0.790 - rr * 0.150, 0.235, 0.100])
+        med9, eff9 = [], []
+        for y in Y9:
+            r = look9.get((b, y))
+            ok = r and r['median_S_rare10'] != '' and int(r['n_scored_cells']) >= MINC9
+            med9.append(float(r['median_S_rare10']) if ok else _np.nan)
+            eff9.append(int(r['n_recordings']) if r else 0)
+        axe = ax.twinx()
+        axe.bar(xs9, eff9, color='#d8dee8', width=0.75, zorder=1)
+        axe.set_ylim(0, max(max(eff9), 1) * 1.9)
+        axe.set_yticks([])
+        ax.plot(xs9, med9, color='#22303f', lw=1.5, marker='o', ms=3.2,
+                mfc='#4575b4', mec='#22303f', zorder=3)
+        ax.set_zorder(axe.get_zorder() + 1); ax.patch.set_visible(False)
+        ax.set_ylim(3, 15)
+        ax.set_yticks([5, 10, 15]); ax.tick_params(labelsize=6.2)
+        ax.set_xticks(xs9[::2]); ax.set_xticklabels([y[2:] for y in Y9[::2]], size=6.2)
+        ax.grid(True, axis='y', lw=0.3, color='#eee', zorder=0)
+        d = float(bc9[i]['delta'])
+        ax.set_title(f"{b[:34]}", size=6.9, loc='left', pad=8)
+        ax.text(0, 1.015, f"n={int(bc9[i]['total_recordings']):,}   delta {d:+.1f}",
+                transform=ax.transAxes, size=5.9,
+                color='#d73027' if d < -0.5 else ('#1a9850' if d > 0.5 else '#777'))
+
+    note9 = (
+        "Every panel is drawn on the SAME richness axis (3-15), so the series can be compared\n"
+        "directly. Read the grey bars first: where effort is small the line is jagged, and where\n"
+        "effort is large it is flat. That is the whole pattern -- Tundra, Mangroves and Flooded\n"
+        "Grasslands swing by several species between adjacent years on a few hundred recordings,\n"
+        "while Temperate Broadleaf & Mixed Forests, with 314,620, barely moves.\n\n"
+        "No panel shows a monotonic decade-long trend. The deltas printed above each panel are\n"
+        "first-vs-last-year differences, not fitted trends, and in every biome the year-to-year\n"
+        "jitter is at least as large as the delta -- so none of them is distinguishable from noise."
+    )
+    fig.text(0.085, 0.150, note9, ha='left', va='top', size=7.6, family='monospace')
+    fig.text(0.5, 0.012, 'Acoustic Biodiversity Report  -  page 9  -  biome series',
+             ha='center', size=8, color='#999')
+    pp.savefig(fig); plt.close(fig)
+    npages += 1
+
+# ---- Page 10: urban class (city/town/rural) year by year ----
+if os.path.exists('urban_yearly.csv') and os.path.exists('urban_change.csv'):
+    import numpy as _np
+
+    ur = list(csv.DictReader(open('urban_yearly.csv', newline='')))
+    uc = list(csv.DictReader(open('urban_change.csv', newline='')))
+    UY = sorted({r['year'] for r in ur})
+    UCLS = ['city', 'town', 'rural']
+    ulook = {(r['urban_class'], r['year']): r for r in ur}
+    UCOL = {'city': '#d73027', 'town': '#f0a24a', 'rural': '#1a9850'}
+    MINU = 5
+    LAST_LABELLED = max(r['year'] for r in ur if r['class_carried_forward'] == '0')
+
+    fig = plt.figure(figsize=(8.27, 11.69))
+    fig.text(0.5, 0.962, 'Year-by-Year Change by Urban Class (2015-2025)',
+             ha='center', size=16, weight='bold')
+    fig.text(0.5, 0.940, 'Effort-controlled richness (S_rare10) for city / town / rural cells',
+             ha='center', size=9, style='italic', color='#555')
+
+    xs = _np.arange(len(UY))
+    cut = UY.index(LAST_LABELLED)
+
+    # ---- richness series ----
+    ax = fig.add_axes([0.11, 0.60, 0.80, 0.29])
+    ax.axvspan(cut + 0.5, len(UY) - 0.5, color='#f2f2f2', zorder=0)
+    ax.text(len(UY) - 0.55, 11.75, 'class carried forward\n(no GCTB polygons)', ha='right',
+            va='top', size=7, color='#888', style='italic')
+    for u in UCLS:
+        vals = []
+        for y in UY:
+            r = ulook.get((u, y))
+            ok = r and r['median_S_rare10'] != '' and int(r['n_scored_cells']) >= MINU
+            vals.append(float(r['median_S_rare10']) if ok else _np.nan)
+        ax.plot(xs, vals, color=UCOL[u], lw=1.9, marker='o', ms=4, label=u, zorder=3)
+    ax.axvline(cut + 0.5, color='#999', lw=1.0, ls='--', zorder=2)
+    ax.set_xticks(xs); ax.set_xticklabels([y[2:] for y in UY], size=8)
+    ax.set_ylim(6, 12); ax.set_ylabel('median S_rare10', size=8.5)
+    ax.tick_params(labelsize=8)
+    ax.grid(True, axis='y', lw=0.3, color='#eee')
+    ax.legend(ncol=3, fontsize=8, frameon=False, loc='lower left')
+    ax.set_title('Median effort-controlled richness by class', size=9.5, loc='left')
+
+    # ---- effort behind each class (log scale: rural dwarfs the others) ----
+    ax2 = fig.add_axes([0.11, 0.395, 0.80, 0.155])
+    wdt = 0.26
+    for i, u in enumerate(UCLS):
+        eff = [int(ulook[(u, y)]['n_recordings']) if (u, y) in ulook else 0 for y in UY]
+        ax2.bar(xs + (i - 1) * wdt, eff, width=wdt, color=UCOL[u], label=u, alpha=0.85)
+    ax2.set_yscale('log'); ax2.set_ylabel('recordings (log)', size=8.5)
+    ax2.set_xticks(xs); ax2.set_xticklabels([y[2:] for y in UY], size=8)
+    ax2.tick_params(labelsize=7.5)
+    ax2.axvline(cut + 0.5, color='#999', lw=1.0, ls='--')
+    ax2.grid(True, axis='y', lw=0.3, color='#eee')
+    ax2.set_title('Recording effort behind each class (log scale)', size=9.5, loc='left')
+
+    # ---- narrative ----
+    cty = next(r for r in uc if r['urban_class'] == 'city')
+    rur = next(r for r in uc if r['urban_class'] == 'rural')
+    note = (
+        "NEITHER CITY NOR RURAL RICHNESS TRENDS.\n\n"
+        f"Over the labelled window ({cty['labelled_first_year']}-{cty['labelled_last_year']}) the city median moves "
+        f"{float(cty['delta_labelled_window']):+.1f} and rural {float(rur['delta_labelled_window']):+.1f}. Both are\n"
+        "far smaller than the year-to-year jitter in either series, so neither is distinguishable\n"
+        "from noise. The town series (only 719 cells) swings by ~3 species between adjacent\n"
+        "years, which is what a small sample looks like.\n\n"
+        "THE TRACKED CELLS SAY NO CHANGE. Cells followed across >=2 years split\n"
+        f"city {cty['cells_up']}/{cty['cells_down']} up/down and rural {rur['cells_up']}/{rur['cells_down']} -- rural is an exact coin flip.\n"
+        "A real divergence between urban and rural biodiversity would show up here first,\n"
+        "and it does not.\n\n"
+        "COVERAGE CAVEAT. GCTB built-up polygons stop at 2022, so only 510,923 recordings\n"
+        f"({UY[0]}-{LAST_LABELLED}) carry a real class. Urban class is a property of the PLACE, so each\n"
+        "cell's class is carried forward to 2023-2025 (shaded). Those three years rest on an\n"
+        "assumption -- that cells did not change built-up status -- not on measurement.\n\n"
+        "Cells take the modal class of their recordings: 97.0% of recordings fall in their\n"
+        "cell's modal class and 5.8% of cells are mixed (higher than the 1.6% for biomes,\n"
+        "because city boundaries cut through 0.1-degree cells far more often than biomes do)."
+    )
+    fig.text(0.075, 0.335, note, ha='left', va='top', size=8.0, family='monospace')
+    fig.text(0.5, 0.028, 'Acoustic Biodiversity Report  -  page 10  -  urban class yearly',
+             ha='center', size=8, color='#999')
+    pp.savefig(fig); plt.close(fig)
+    npages += 1
+
+# ---- Page 11: biome map ----
+# Where each biome's recordings actually are. One dot per 0.1-degree cell,
+# coloured by the cell's modal biome, sized by recording volume.
+if os.path.exists('cell_biome.csv'):
+    import numpy as _np
+
+    cb = list(csv.DictReader(open('cell_biome.csv', newline='')))
+    counts = collections.Counter(r['biome_name'] for r in cb)
+    # colour order follows recording volume so the legend matches pages 8-9
+    if os.path.exists('biome_change.csv'):
+        order = [r['biome_name'] for r in csv.DictReader(open('biome_change.csv', newline=''))]
+    else:
+        order = [b for b, _ in counts.most_common()]
+    order = [b for b in order if b in counts] + [b for b in counts if b not in order]
+
+    # qualitative, ordered by recording volume -- the two largest biomes must not
+    # share a hue, so distinguishability is prioritised over habitat semantics
+    PAL = ['#33a02c', '#1f78b4', '#b15928', '#ff7f00', '#a6cee3', '#6a3d9a',
+           '#e31a1c', '#fdbf6f', '#b2df8a', '#cab2d6', '#17becf', '#006d2c',
+           '#fb9a99', '#7f7f7f', '#bcbd22']
+    cmap = {b: PAL[i % len(PAL)] for i, b in enumerate(order)}
+
+    fig = plt.figure(figsize=(11.69, 8.27))  # A4 landscape
+    fig.text(0.5, 0.962, 'Recording Coverage by Biome', ha='center', size=17, weight='bold')
+    fig.text(0.5, 0.934,
+             f"{len(cb):,} grid cells (0.1 deg), each coloured by the modal biome of its recordings",
+             ha='center', size=9, style='italic', color='#555')
+
+    axm = fig.add_axes([0.035, 0.30, 0.66, 0.60])
+    lat = _np.array([float(r['lat_cell']) for r in cb])
+    lon = _np.array([float(r['lon_cell']) for r in cb])
+    nrec = _np.array([int(r['n_recordings']) for r in cb], float)
+    col = [cmap[r['biome_name']] for r in cb]
+    sz = 0.6 + 5.0 * _np.log10(nrec + 1) / _np.log10(nrec.max() + 1)
+    # rasterize the 40k-point cloud: as vector it inflates the PDF ~30x (0.2 -> 6 MB)
+    axm.scatter(lon, lat, s=sz, c=col, linewidths=0, alpha=0.85, rasterized=True)
+    axm.set_xlim(-180, 180); axm.set_ylim(-60, 82)
+    axm.set_xticks(range(-180, 181, 60)); axm.set_yticks(range(-60, 81, 30))
+    axm.tick_params(labelsize=7.5)
+    axm.set_aspect('equal', adjustable='box')
+    axm.grid(True, lw=0.3, color='#eee')
+    axm.set_title('Dot size = recordings in that cell (log scale)', size=9, loc='left')
+
+    # ---- legend with counts ----
+    axl = fig.add_axes([0.71, 0.30, 0.27, 0.60]); axl.axis('off')
+    axl.set_title('biome (cells / recordings)', size=9, loc='left')
+    tot_rec = collections.Counter()
+    for r in cb:
+        tot_rec[r['biome_name']] += int(r['n_recordings'])
+    for i, b in enumerate(order):
+        yy = 1 - (i + 0.5) / len(order)
+        axl.scatter([0.03], [yy], s=34, c=cmap[b], linewidths=0, transform=axl.transAxes)
+        axl.text(0.09, yy, f'{b[:38]}', va='center', size=7.2, transform=axl.transAxes)
+        axl.text(0.09, yy - 0.026, f'{counts[b]:,} cells / {tot_rec[b]:,} rec',
+                 va='center', size=6.1, color='#777', transform=axl.transAxes)
+
+    mixed_cells = sum(1 for r in cb if int(r['n_biomes_in_cell']) > 1)
+    note = (
+        "COVERAGE IS NOT ECOLOGICAL COVERAGE. The map shows where recordists go, not where\n"
+        "biomes are. Europe is saturated across a single biome band while whole tropical biomes\n"
+        f"are covered by scattered cells: Temperate Broadleaf & Mixed Forests holds {counts[order[0]]:,} cells,\n"
+        f"the three smallest together fewer than {sum(counts[b] for b in order[-3:]):,}. This is the sampling bias behind\n"
+        "every per-biome number here -- a biome comparison is a comparison of recordist\n"
+        "communities as much as of habitats, and the biomes with fewest cells are exactly\n"
+        "those whose yearly series swing hardest on pages 8 and 9.\n\n"
+        f"Cells take the modal biome of their recordings; {mixed_cells:,} ({100*mixed_cells/len(cb):.1f}%) contain more than one\n"
+        "and are drawn in their majority colour. Polygons: RESOLVE Ecoregions 2017\n"
+        "(Dinerstein et al., CC-BY 4.0). Colours are categorical only."
+    )
+    fig.text(0.035, 0.235, note, ha='left', va='top', size=8.0, family='monospace')
+    fig.text(0.5, 0.03, 'Acoustic Biodiversity Report  -  page 11  -  biome map',
+             ha='center', size=8, color='#999')
+    pp.savefig(fig, dpi=300); plt.close(fig)
+    npages += 1
+
 pp.close()
 print(f'wrote Acoustic_Biodiversity_Report.pdf  ({npages} pages)')

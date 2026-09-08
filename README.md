@@ -113,6 +113,9 @@ uneven sample.
 | `outputs/biome_usable_counts.csv` | per biome usable counts after the degenerate-row guard |
 | `outputs/biome_yearly.csv` | per biome x year: cell-years, recordings, median/mean S_rare10 |
 | `outputs/biome_change.csv` | per biome: first vs last year median, delta, tracked-cell up/down/flat |
+| `outputs/cell_biome.csv` | per grid cell: modal biome + recording count (drives the biome map) |
+| `outputs/urban_yearly.csv` | per urban class x year: cells, recordings, median/mean S_rare10 |
+| `outputs/urban_change.csv` | per urban class: first vs last median, delta, tracked-cell split |
 
 The per-recording table (`recordings_ecoregion.csv`, 191 MB) is gitignored — regenerate it with
 `scripts/classify_ecoregion.py`.
@@ -128,6 +131,13 @@ without controlling for recordist and recording length.
 change**: each biome's year-to-year jitter is as large as its 2015→2025 delta, and tracked
 cells split near 50/50 inside every biome (1,111 up vs 1,099 down overall). The biomes with
 the fewest recordings swing hardest — the signature of small samples, not habitat change.
+
+The report also breaks this out **one biome at a time** (page 9, small multiples with each
+biome's recording effort behind it), maps **where each biome's recordings actually are**
+(page 11), and repeats the exercise for **city/town/rural** (page 10) — where neither city
+(−0.2) nor rural (+0.2) shows a trend over the labelled 2015–2022 window, and tracked rural
+cells split an exact 945/945 up/down. Note the urban layer's class is carried forward for
+2023–2025, since GCTB polygons stop at 2022.
 
 ## Reproduce
 
@@ -148,5 +158,6 @@ python3 scripts/plot_india.py            # -> figures/india_recordings_*.png
 # ecoregion / biome classification (same geopandas env; shapefiles in ../ECOREGIONS/)
 python3 scripts/classify_ecoregion.py    # -> recordings_ecoregion.csv + ecoregion_*.csv
 python3 scripts/biome_counts.py          # -> biome/realm/ecoregion data-completeness counts
-python3 scripts/build_biome_yearly.py    # -> biome_yearly.csv + biome_change.csv (report p8)
+python3 scripts/build_biome_yearly.py    # -> biome_yearly.csv + biome_change.csv + cell_biome.csv
+python3 scripts/build_urban_yearly.py    # -> urban_yearly.csv + urban_change.csv
 ```
