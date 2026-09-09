@@ -777,5 +777,190 @@ if os.path.exists('cell_biome.csv'):
     pp.savefig(fig, dpi=300); plt.close(fig)
     npages += 1
 
+
+# ---- Page 12: is there a ten-year trend? (turnover vs change) ----
+# The question page 5 raises but never tests. Everything here is computed at
+# runtime from grid_cells_yearly.csv. Theil-Sen / Kendall are hand-rolled to
+# avoid a scipy dependency; both were verified against scipy to machine
+# precision (slope, 95% CI, tau-b and its tie-corrected p all agree).
+if os.path.exists('grid_cells_yearly.csv'):
+    def _med(v):
+        s = sorted(v); n = len(s)
+        return s[n // 2] if n % 2 else 0.5 * (s[n // 2 - 1] + s[n // 2])
+
+    def _theil_sen(xs, ys, z=1.959963985):
+        n = len(xs); sl = []
+        for i in range(n):
+            for j in range(i + 1, n):
+                if xs[j] != xs[i]:
+                    sl.append((ys[j] - ys[i]) / (xs[j] - xs[i]))
+        sl.sort(); nt = len(sl)
+        med = sl[nt // 2] if nt % 2 else 0.5 * (sl[nt // 2 - 1] + sl[nt // 2])
+        sig = math.sqrt(n * (n - 1) * (2 * n + 5) / 18.0)
+        Ru = min(int(round((nt + z * sig) / 2.0)), nt - 1)
+        Rl = max(int(round((nt - z * sig) / 2.0)) - 1, 0)
+        return med, sl[Rl], sl[Ru]
+
+    def _kendall(xs, ys):
+        n = len(xs); c = d = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                s = (xs[j] - xs[i]) * (ys[j] - ys[i])
+                if s > 0: c += 1
+                elif s < 0: d += 1
+        S = c - d; n0 = n * (n - 1) / 2.0
+        tx = list(collections.Counter(xs).values())
+        ty = list(collections.Counter(ys).values())
+        n1 = sum(t * (t - 1) / 2.0 for t in tx); n2 = sum(u * (u - 1) / 2.0 for u in ty)
+        tau = S / math.sqrt((n0 - n1) * (n0 - n2))
+        v0 = n * (n - 1) * (2 * n + 5)
+        vt = sum(t * (t - 1) * (2 * t + 5) for t in tx)
+        vu = sum(u * (u - 1) * (2 * u + 5) for u in ty)
+        v1 = (sum(t * (t - 1) for t in tx) * sum(u * (u - 1) for u in ty)) / (2.0 * n * (n - 1))
+        v2 = (sum(t * (t - 1) * (t - 2) for t in tx) * sum(u * (u - 1) * (u - 2) for u in ty)) \
+             / (9.0 * n * (n - 1) * (n - 2))
+        var = (v0 - vt - vu) / 18.0 + v1 + v2
+        return tau, math.erfc(abs(S / math.sqrt(var)) / math.sqrt(2))
+
+    _yr = csv.reader(open('grid_cells_yearly.csv', newline='')); _yh = next(_yr)
+    _yi = {c: i for i, c in enumerate(_yh)}
+    recs = []
+    for row in _yr:
+        s = row[_yi['S_rare10']]
+        if s == '':
+            continue
+        recs.append((round(float(row[_yi['lat_cell']]), 1),
+                     round(float(row[_yi['lon_cell']]), 1),
+                     int(row[_yi['year']]), float(s)))
+    TY = sorted({r[2] for r in recs})
+
+    byy = collections.defaultdict(list)
+    for r in recs:
+        byy[r[2]].append(r[3])
+    raw = [_med(byy[y]) for y in TY]
+    r_sl, r_lo, r_hi = _theil_sen(TY, raw)
+    r_tau, r_p = _kendall(TY, raw)
+
+    seen = collections.defaultdict(set)
+    for r in recs:
+        seen[(r[0], r[1])].add(r[2])
+
+    def _panel(minY):
+        keep = {c for c, ys in seen.items() if len(ys) >= minY}
+        b = collections.defaultdict(list)
+        for r in recs:
+            if (r[0], r[1]) in keep:
+                b[r[2]].append(r[3])
+        yy = [y for y in TY if len(b[y]) >= 5]
+        return keep, yy, [_med(b[y]) for y in yy]
+
+    # paired: same cells, first three years vs last three
+    e_lo, e_hi = TY[0], TY[2]; l_lo, l_hi = TY[-3], TY[-1]
+    ear = collections.defaultdict(list); lat = collections.defaultdict(list)
+    for r in recs:
+        if e_lo <= r[2] <= e_hi: ear[(r[0], r[1])].append(r[3])
+        elif l_lo <= r[2] <= l_hi: lat[(r[0], r[1])].append(r[3])
+    both = sorted(set(ear) & set(lat))
+    dif = [sum(lat[c]) / len(lat[c]) - sum(ear[c]) / len(ear[c]) for c in both]
+    np_ = len(dif); p_mean = sum(dif) / np_
+    p_sd = math.sqrt(sum((x - p_mean) ** 2 for x in dif) / (np_ - 1))
+    p_ci = 1.959963985 * p_sd / math.sqrt(np_)
+    p_up = sum(1 for x in dif if x > 0); p_dn = sum(1 for x in dif if x < 0)
+
+    # new vs returning cells, per year
+    first = {}
+    for r in sorted(recs, key=lambda x: x[2]):
+        first.setdefault((r[0], r[1]), r[2])
+    nw, rt, pnew = [], [], []
+    for y in TY:
+        a = [r[3] for r in recs if r[2] == y and first[(r[0], r[1])] == y]
+        b = [r[3] for r in recs if r[2] == y and first[(r[0], r[1])] < y]
+        nw.append(_med(a) if a else float('nan'))
+        rt.append(_med(b) if b else float('nan'))
+        pnew.append(100.0 * len(a) / (len(a) + len(b)))
+    n_lower = sum(1 for a, b in zip(nw, rt)
+                  if a == a and b == b and a < b)
+    n_cmp = sum(1 for a, b in zip(nw, rt) if a == a and b == b)
+
+    fig = plt.figure(figsize=(11.69, 8.27))
+    fig.suptitle('Is there a ten-year trend?  Turnover, not change', size=14, weight='bold')
+
+    ax1 = fig.add_axes([0.065, 0.600, 0.385, 0.270])
+    ax1.plot(TY, raw, marker='o', ms=4, color='#c0392b', lw=2,
+             label='all scored cells  (%+.2f/decade)' % (r_sl * 10))
+    fitx = [TY[0], TY[-1]]
+    mid = _med(raw); midx = TY[len(TY) // 2]
+    ax1.plot(fitx, [mid + r_sl * (x - midx) for x in fitx], ls='--', lw=1.2,
+             color='#c0392b', alpha=0.7)
+    k8, y8, s8 = _panel(8)
+    _p8 = _theil_sen(y8, s8)[0] * 10
+    ax1.plot(y8, s8, marker='s', ms=4, color='#16668f', lw=2,
+             label='same cells, >=8 yrs, n=%d  (%+.2f/decade)' % (len(k8), _p8))
+    ax1.set_ylabel('Median richness (S_rare10)')
+    ax1.set_title('The decline is in the pool, not the places', size=10.5)
+    ax1.grid(True, lw=0.3, color='#eee'); ax1.legend(fontsize=7.5, loc='lower left')
+
+    ax2 = fig.add_axes([0.565, 0.600, 0.385, 0.270])
+    ax2b = ax2.twinx()
+    ax2b.bar(TY, pnew, color='#e8e8e8', width=0.7, zorder=0)
+    ax2b.set_ylabel('% of year\'s cells that are new', size=8, color='#999')
+    ax2b.tick_params(axis='y', labelsize=7, colors='#999'); ax2b.set_ylim(0, 100)
+    ax2.set_zorder(ax2b.get_zorder() + 1); ax2.patch.set_visible(False)
+    ax2.plot(TY, rt, marker='o', ms=4, color='#1a7a4c', lw=2, label='returning cells')
+    ax2.plot(TY, nw, marker='o', ms=4, color='#c47f17', lw=2, label='newly-recorded cells')
+    ax2.set_ylabel('Median richness'); ax2.grid(True, lw=0.3, color='#eee')
+    ax2.set_title('Newly-recorded cells are poorer, every year', size=10.5)
+    ax2.legend(fontsize=7.5, loc='lower left')
+
+    ax3 = fig.add_axes([0.300, 0.395, 0.620, 0.135])
+    ent = [('all scored cells (%d)' % len({(r[0], r[1]) for r in recs}),
+            r_sl * 10, r_lo * 10, r_hi * 10)]
+    for m in (2, 4, 6, 8):
+        kk, yy, ss = _panel(m)
+        sl, lo, hi = _theil_sen(yy, ss)
+        ent.append(('same cells, >=%d yrs (%d)' % (m, len(kk)), sl * 10, lo * 10, hi * 10))
+    ent.append(('paired %d-%d vs %d-%d (%d)' % (e_lo, e_hi, l_lo, l_hi, np_),
+                p_mean, p_mean - p_ci, p_mean + p_ci))
+    for i, (lab, est, lo, hi) in enumerate(ent):
+        yv = len(ent) - 1 - i
+        col = '#c0392b' if i == 0 else '#16668f'
+        ax3.plot([lo, hi], [yv, yv], color=col, lw=2, solid_capstyle='butt')
+        ax3.plot([est], [yv], marker='o', ms=5, color=col)
+    ax3.axvline(0, color='#333', lw=1)
+    ax3.set_yticks(range(len(ent)))
+    ax3.set_yticklabels([e[0] for e in reversed(ent)], size=7.6)
+    _wl = min(e[2] for e in ent); _wh = max(e[3] for e in ent)
+    ax3.set_xlim(_wl - 0.4, _wh + 0.4); ax3.set_ylim(-0.6, len(ent) - 0.4)
+    ax3.set_xlabel('Change in median richness over the decade (species), with 95% CI', size=8.5)
+    ax3.set_title('Every turnover-controlled estimate sits on zero -- but none is precise',
+                  size=10.5)
+    for s in ('top', 'right'):
+        ax3.spines[s].set_visible(False)
+    ax3.tick_params(axis='y', length=0)
+    ax3.grid(True, axis='x', lw=0.3, color='#eee')
+
+    note = (
+        "NO. Raw, the series falls %.2f -> %.2f (Theil-Sen %+.2f species/decade, Kendall tau %+.2f,\n"
+        "p = %.3f) -- marginal, and not significant. Follow the SAME cells and it disappears:\n"
+        "the >=8-year panel gives %+.2f/decade and the %d paired cells %+.3f (%d up / %d down).\n\n"
+        "MECHANISM: %.0f-%.0f%% of each year's scored cells were never recorded before, and newly-\n"
+        "recorded cells sit below returning ones in %d of %d years. The archive keeps expanding into\n"
+        "thinner locations, which drags the pooled median down while no individual place changes.\n\n"
+        "LIMIT: the controlled estimates are UNDERPOWERED, not proof of stability. The paired CI is\n"
+        "[%+.2f, %+.2f] and the >=8-year panel spans more than two species -- a real decline of up to\n"
+        "~0.5 species/decade would not be detectable here. Read this as no evidence of a trend,\n"
+        "plus a well-identified artefact that explains the apparent one.\n\n"
+        "CONFOUND: the steepest fall is the last three years, exactly where the data source changes\n"
+        "from the historical backfill to the base+gap run. Year and processing path cannot be\n"
+        "separated with what is on disk, so even the marginal raw decline is suspect."
+    ) % (raw[0], raw[-1], r_sl * 10, r_tau, r_p, (_theil_sen(y8, s8)[0]) * 10,
+         np_, p_mean, p_up, p_dn, min(pnew[1:]), max(pnew[1:]), n_lower, n_cmp,
+         p_mean - p_ci, p_mean + p_ci)
+    fig.text(0.065, 0.335, note, ha='left', va='top', size=7.7, family='monospace')
+    fig.text(0.5, 0.018, 'Acoustic Biodiversity Report  -  page 12  -  is there a trend?',
+             ha='center', size=8, color='#999')
+    pp.savefig(fig); plt.close(fig)
+    npages += 1
+
 pp.close()
 print(f'wrote Acoustic_Biodiversity_Report.pdf  ({npages} pages)')

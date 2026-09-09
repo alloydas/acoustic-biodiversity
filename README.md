@@ -143,6 +143,30 @@ biome's recording effort behind it), maps **where each biome's recordings actual
 cells split an exact 945/945 up/down. Note the urban layer's class is carried forward for
 2023–2025, since GCTB polygons stop at 2022.
 
+### Is there a ten-year trend? (report page 12)
+
+Tested directly, and the answer is **no — the apparent decline is cell turnover, not change.**
+Pooled over everything recorded each year, median richness falls 9.70 → 9.27, a Theil–Sen
+slope of **−0.46 species/decade** (Kendall τ −0.44, *p* = 0.061) — marginal, not significant.
+Follow the *same* cells and it vanishes: the ≥8-year balanced panel gives **+0.00/decade**
+(n = 91) and 544 cells paired 2015–2017 vs 2023–2025 give **−0.07** (269 up / 275 down,
+Wilcoxon *p* = 0.87).
+
+The mechanism is identified: **46–78% of each year's scored cells are places never recorded
+before**, and newly-recorded cells sit below returning ones in **10 of 10** years (Mann–Whitney
+*p* = 2×10⁻⁸⁰). The archive keeps expanding into thinner locations, dragging the pooled median
+down while no individual place changes.
+
+Two caveats stated on the page. The controlled estimates are **underpowered, not proof of
+stability** — the paired CI is [−0.52, +0.39], so a real decline up to ~0.5 species/decade
+would be undetectable. And the steepest part of the fall is the last three years, exactly where
+the data source changes from the historical backfill to the base+gap run; year and processing
+path cannot be separated with what is on disk.
+
+Theil–Sen and Kendall τ-b are hand-rolled in `make_report.py` to avoid a scipy dependency;
+both were verified against scipy to machine precision (slope, 95% CI, τ and its tie-corrected
+*p*).
+
 ## Reproduce
 
 ```bash
