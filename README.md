@@ -3,9 +3,13 @@
 A global, location-level biodiversity metric derived from ~760k Xeno-canto wildlife
 recordings (2015–2025) and their metadata. See **[report/Acoustic_Biodiversity_Report.pdf](report/Acoustic_Biodiversity_Report.pdf)**
 for the full write-up, world map, and results — or read
-**[Silent Signal](https://claude.ai/code/artifact/0682b77c-4949-45a3-a1a6-17cf6eaac425)**
-(hosted, access-restricted), the same results as one scrollable page: correlations, the
-degenerate-row correction, biome map, per-biome series, urban split. Open
+**[Silent Signal](https://claude.ai/artifact/1odWtHn1mamyeBaiLoJ5eC)** (hosted page), the
+results as one scrollable, interactive page. Updated 2026-09-24 for the merged 1886–2025
+archive (1,003,444 recordings, adding 245,246 older ones from `merged_metadata_all.csv`), it
+opens with a playable year-by-year time-lapse of the archive (1990–2025) and covers the
+correlations, the degenerate-row and merged-index corrections, the biome map, per-biome
+series, the long-run trend test and the urban split. The scripts, outputs and report in this
+repo are still the 2015–2025 versions. Open
 **[web/year_explorer.html](web/year_explorer.html)** to scrub/play through the map year by
 year (2015–2025).
 
