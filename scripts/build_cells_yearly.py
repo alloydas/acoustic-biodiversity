@@ -18,6 +18,9 @@ FILES = {
     'europe': 'score_europe_meta.csv',
 }
 M = 10  # rarefaction sample size
+# plausible calendar years; the 1886-2023 merged source also carries placeholder
+# dates (0000-xx-xx, 0202-..., 2026-...) that would otherwise become 'years'
+YEAR_MIN, YEAR_MAX = 1850, 2025
 
 
 def fnum(s):
@@ -48,8 +51,11 @@ def rarefy(incidence, N, m):
     return est
 
 
-# (cell, year) -> {continent, n, sp_incidence}
-cy = collections.defaultdict(lambda: {'continent': None, 'n': 0, 'sp': collections.Counter()})
+# (cell, year) -> {n, sp_incidence}
+cy = collections.defaultdict(lambda: {'n': 0, 'sp': collections.Counter()})
+# cell -> continent -> rows over all years; every cell-year takes the cell's majority,
+# as grid_cells.csv does (a per-year majority would tie on 1-vs-1 cell-years)
+cell_conts = collections.defaultdict(collections.Counter)
 
 for cont, path in FILES.items():
     with open(path, newline='') as f:
@@ -59,12 +65,12 @@ for cont, path in FILES.items():
             key = cell_key(row[ci['lat']], row[ci['lon']])
             if key is None:
                 continue
+            cell_conts[key][cont] += 1
             d = row[ci['date']]
-            if len(d) < 4 or not d[:4].isdigit():
+            if len(d) < 4 or not d[:4].isdigit() or not YEAR_MIN <= int(d[:4]) <= YEAR_MAX:
                 continue
             year = d[:4]
             st = cy[(key, year)]
-            st['continent'] = cont
             st['n'] += 1
             sp = set()
             main = (row[ci['gen']] + ' ' + row[ci['sp']]).strip()
@@ -86,13 +92,13 @@ with open('grid_cells_yearly.csv', 'w', newline='') as f:
     for (key, year), st in cy.items():
         s_obs = len(st['sp'])
         s_rare = rarefy(st['sp'], st['n'], M)
-        w.writerow([key[0], key[1], st['continent'], year, st['n'], s_obs,
+        w.writerow([key[0], key[1], cell_conts[key].most_common(1)[0][0], year, st['n'], s_obs,
                     '' if s_rare is None else round(s_rare, 3)])
         if s_rare is not None:
             scored[key][year] = s_rare
-            trend[year][st['continent']].append(s_rare)
+            trend[year][cell_conts[key].most_common(1)[0][0]].append(s_rare)
 
-# all calendar years present in the data (2015-2025 for the 10-year set)
+# all calendar years present in the data (YEAR_MIN..YEAR_MAX after filtering)
 all_years = sorted({year for (_, year) in cy})
 
 # coverage
@@ -120,7 +126,7 @@ for cont in allconts:
     print(line)
 line = f'{"ALL":<11}'
 for y in years:
-    v = sorted(glob[y]); line += f'{v[len(v)//2]:>10.1f}'
+    v = sorted(glob[y]); line += f'{(v[len(v)//2] if v else float("nan")):>10.1f}'
 print(line)
 
 # per-cell change (first vs last scored year)

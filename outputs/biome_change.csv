@@ -1,15 +1,15 @@
 biome_name,first_year,last_year,first_median,last_median,delta,n_years_reported,total_recordings,cells_up,cells_down,cells_flat
-Temperate Broadleaf & Mixed Forests,2015,2025,10.507,9.228,-1.279,11,314620,449,414,124
-Tropical & Subtropical Moist Broadleaf Forests,2015,2025,9.819,9.584,-0.235,11,141424,246,269,87
-"Mediterranean Forests, Woodlands & Scrub",2015,2025,8.382,8.614,0.232,11,88942,134,151,33
-"Tropical & Subtropical Grasslands, Savannas & Shrublands",2015,2025,9.459,9.6,0.141,11,41326,72,58,18
-Deserts & Xeric Shrublands,2015,2025,11.235,7.4,-3.835,11,29549,34,40,11
-Temperate Conifer Forests,2015,2025,9.121,9.627,0.506,11,27366,32,34,5
-Tropical & Subtropical Dry Broadleaf Forests,2015,2025,9.47,9.502,0.032,11,24594,34,18,6
-Boreal Forests/Taiga,2015,2025,8.885,9.844,0.959,11,24449,24,39,5
-"Temperate Grasslands, Savannas & Shrublands",2015,2025,11.316,9.182,-2.134,11,17837,29,23,9
-Montane Grasslands & Shrublands,2015,2025,8.487,8.382,-0.105,11,9876,18,16,7
-Tropical & Subtropical Coniferous Forests,2015,2025,9.977,10.996,1.019,11,8401,19,17,5
-Mangroves,2015,2025,10.395,9.002,-1.393,11,5394,9,11,0
-Tundra,2015,2025,5.669,7.605,1.936,11,4983,9,4,0
-Flooded Grasslands & Savannas,2015,2023,10.802,8.755,-2.047,7,3754,2,5,0
+Temperate Broadleaf & Mixed Forests,1986,2025,9.505,9.228,-0.277,28,362333,535,519,139
+Tropical & Subtropical Moist Broadleaf Forests,1983,2025,10.314,9.591,-0.723,42,247667,438,507,137
+"Mediterranean Forests, Woodlands & Scrub",1995,2025,6.95,8.614,1.664,22,97166,159,166,34
+"Tropical & Subtropical Grasslands, Savannas & Shrublands",1997,2025,9.561,9.586,0.025,28,55662,103,108,28
+Deserts & Xeric Shrublands,2003,2025,8.592,7.456,-1.136,20,38638,60,57,14
+Tropical & Subtropical Dry Broadleaf Forests,1992,2025,10.629,9.0,-1.629,32,34963,59,47,15
+Temperate Conifer Forests,1995,2025,14.036,9.627,-4.409,18,34256,50,47,11
+Boreal Forests/Taiga,2011,2025,10.074,9.844,-0.23,14,27877,30,49,5
+"Temperate Grasslands, Savannas & Shrublands",2010,2025,12.577,9.182,-3.395,16,24779,46,31,13
+Montane Grasslands & Shrublands,2005,2025,7.324,8.359,1.035,20,15023,34,27,14
+Tropical & Subtropical Coniferous Forests,2000,2025,7.433,11.992,4.559,18,12324,26,30,8
+Mangroves,2001,2025,6.922,9.002,2.08,14,7206,17,20,2
+Tundra,2012,2025,8.694,7.605,-1.089,14,6671,10,7,1
+Flooded Grasslands & Savannas,2005,2023,9.417,8.755,-0.662,11,6023,7,8,1

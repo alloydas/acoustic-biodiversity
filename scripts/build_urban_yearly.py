@@ -112,7 +112,9 @@ with open('urban_yearly.csv', 'w', newline='') as f:
             w.writerow([u, y, st['cells'], st['n_rec'], len(st['rich']),
                         '' if m is None else round(m, 3),
                         '' if not st['rich'] else round(sum(st['rich']) / len(st['rich']), 3),
-                        1 if y > LABEL_YEARS[1] else 0])
+                        # outside the GCTB window the cell's class is carried (forward to
+                        # 2023-2025 and, since the 1886-2023 merge, back to pre-2015)
+                        0 if LABEL_YEARS[0] <= y <= LABEL_YEARS[1] else 1])
 print('wrote urban_yearly.csv')
 
 # ---- per-class change + tracked-cell direction split ----
@@ -122,7 +124,9 @@ with open('cell_change.csv', newline='') as f:
     h = next(r); ci = {c: i for i, c in enumerate(h)}
     for row in r:
         # cell_change stores CELL CENTRES (lat_cell + 0.05)
-        k = ikey(float(row[ci['lat']]) - 0.05, float(row[ci['lon']]) - 0.05)
+        # round(), not floor(): 13.45 - 0.05 = 13.3999... would floor into the
+        # neighbouring cell (531 of 3,637 tracked cells were mis-keyed that way, 209 into no cell)
+        k = ikey_from_cell(float(row[ci['lat']]) - 0.05, float(row[ci['lon']]) - 0.05)
         u = cell_class.get(k)
         if u:
             dir_by_class[u][row[ci['direction']]] += 1
@@ -134,7 +138,7 @@ for u in CLASSES:
     if len(ser) < 2:
         continue
     # headline delta over the LABELLED window only (2015-2022), where the class is real
-    lab = [(y, v) for y, v in ser if y <= LABEL_YEARS[1]]
+    lab = [(y, v) for y, v in ser if LABEL_YEARS[0] <= y <= LABEL_YEARS[1]]
     d = dir_by_class[u]
     rows.append({
         'urban_class': u,
@@ -152,13 +156,15 @@ with open('urban_change.csv', 'w', newline='') as f:
 print('wrote urban_change.csv')
 
 print(f'\nMedian effort-controlled richness by urban class x year '
-      f'(| marks the end of real GCTB labelling)')
-print(f"{'class':<8}" + ''.join(f"{y[2:]:>7}" + ('  |' if y == LABEL_YEARS[1] else '')
+      f'(| ... | brackets the real GCTB labelling window)')
+print(f"{'class':<8}" + ''.join(('  |' if y == LABEL_YEARS[0] else '') + f"{y:>7}" + ('  |' if y == LABEL_YEARS[1] else '')
                                 for y in YEARS))
 for u in CLASSES:
     line = f'{u:<8}'
     for y in YEARS:
         st = by.get((u, y))
+        if y == LABEL_YEARS[0]:
+            line += '  |'
         line += (f"{med(st['rich']):>7.1f}" if st and len(st['rich']) >= MIN_CELLS else f"{'-':>7}")
         if y == LABEL_YEARS[1]:
             line += '  |'

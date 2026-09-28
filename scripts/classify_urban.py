@@ -20,6 +20,7 @@ Outputs (written next to this script)
 import os, csv, glob, sys
 os.environ.setdefault('PROJ_DATA',
     '/work/mech-ai-scratch/alloy/.conda/envs/geo/share/proj')
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 from shapely import STRtree
@@ -48,6 +49,13 @@ SUMMARY_COLS = [
 ]
 
 
+def n_indexed(g):
+    """Rows behind the index means: merged-file rows carry no index values."""
+    if 'index_source' not in g.columns:
+        return len(g)
+    return int((g['index_source'].fillna('local') == 'local').sum())
+
+
 def find_shp(kind, year):
     """kind in {'Cities','Towns'}; return path to that year's shapefile."""
     hits = glob.glob(f'{GCTB}/{kind}_*/{kind}_{year}.shp')
@@ -58,7 +66,7 @@ def find_shp(kind, year):
 
 def load_recordings():
     """Read all continents' meta CSVs -> DataFrame of classifiable recordings."""
-    keep = ['id', 'lat', 'lon', 'date'] + SUMMARY_COLS
+    keep = ['id', 'lat', 'lon', 'date', 'index_source'] + SUMMARY_COLS
     frames = []
     for c in CONTINENTS:
         path = f'{ROOT}/score_{c}_meta.csv'
@@ -73,6 +81,10 @@ def load_recordings():
     df['year'] = pd.to_numeric(df['date'].str[:4], errors='coerce')
     for col in SUMMARY_COLS:
         df[col] = pd.to_numeric(df[col], errors='coerce')
+    # rows merged from merged_metadata_all.csv carry indices from different settings
+    # (see merge_meta.py): keep them for classification, blank them for index summaries
+    if 'index_source' in df.columns:
+        df.loc[df['index_source'].fillna('local') != 'local', SUMMARY_COLS] = np.nan
     before = len(df)
     df = df.dropna(subset=['lat', 'lon', 'year'])
     df = df[df['year'].between(2015, 2022)].copy()
@@ -139,7 +151,7 @@ def main():
     df[SUMMARY_COLS] = df[SUMMARY_COLS].replace([np.inf, -np.inf], np.nan)
     rows = []
     for cls, g in df.groupby('urban_class'):
-        rec = {'urban_class': cls, 'n_recordings': len(g)}
+        rec = {'urban_class': cls, 'n_recordings': len(g), 'n_indexed': n_indexed(g)}
         for col in SUMMARY_COLS:
             rec[f'{col}__mean'] = g[col].mean()
             rec[f'{col}__median'] = g[col].median()
@@ -149,12 +161,12 @@ def main():
     summ.to_csv(summ_path)
     print(f'\nWrote {summ_path}', flush=True)
     with pd.option_context('display.width', 200, 'display.max_columns', 50):
-        print(summ[['n_recordings'] + [f'{c}__mean' for c in SUMMARY_COLS]].T.to_string())
+        print(summ[['n_recordings', 'n_indexed'] + [f'{c}__mean' for c in SUMMARY_COLS]].T.to_string())
 
     # ---- per-YEAR x class summary ----
     rows = []
     for (yr, cls), g in df.groupby(['year', 'urban_class']):
-        rec = {'year': yr, 'urban_class': cls, 'n_recordings': len(g)}
+        rec = {'year': yr, 'urban_class': cls, 'n_recordings': len(g), 'n_indexed': n_indexed(g)}
         for col in SUMMARY_COLS:
             rec[f'{col}__mean'] = g[col].mean()
             rec[f'{col}__median'] = g[col].median()

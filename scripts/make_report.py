@@ -1,5 +1,7 @@
 """Generate a multi-page PDF report of the acoustic-biodiversity analysis."""
+import os
 import csv
+import bisect
 import math
 import datetime
 import collections
@@ -98,9 +100,56 @@ N_CELLS = len(cells)
 N_USABLE = len(usable)
 BEST_RHO = abs(corrs[0][1]) if corrs and corrs[0][1] is not None else 0.0
 COVER_PCT = 100 * N_USABLE / N_CELLS if N_CELLS else 0
+N_IDX_CELLS = max(sum(1 for row in usable if row[ci[idx]] != '') for idx in INDICES)  # cells the rho is over
 # These two are properties of the upstream merge, not visible in grid_cells.csv:
-N_RECORDINGS = 759767        # rows in the five score_<c>_meta.csv (merge_meta.py total, 2015-2025)
+N_RECORDINGS = 1003444       # unique recordings in the five score_<c>_meta.csv (merge_meta.py total, 1886-2025)
 N_META = 766747              # records flattened into metadata_2015-2025.csv
+N_EXTRA = 245246             # recordings added from merged_metadata_all.csv (merge_meta.py EXTRA)
+N_EXTRA_GEO = 232035         # of those, geolocated -> excluded from index means (build_cells.py)
+
+# Year pages (5-10, 12) plot only years with at least this many scored cell-years;
+# the 1886-2025 data files keep every year, but a median over a handful of cells
+# is noise (1974-1989 have 0-17 scored cells a year).
+MIN_YEAR_CELLS = 20
+_ycnt = collections.Counter()
+if os.path.exists('grid_cells_yearly.csv'):
+    with open('grid_cells_yearly.csv', newline='') as _f:
+        for _row in csv.DictReader(_f):
+            if _row['S_rare10'] != '':
+                _ycnt[_row['year']] += 1
+RY = {y for y, n in _ycnt.items() if n >= MIN_YEAR_CELLS}
+
+
+# Kendall tau-b with the tie-corrected normal p (verified against scipy.stats.kendalltau);
+# used for the per-biome tests (page 8) and the pooled trend (page 12)
+def _kendall(xs, ys):
+    n = len(xs); c = d = 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            s = (xs[j] - xs[i]) * (ys[j] - ys[i])
+            if s > 0: c += 1
+            elif s < 0: d += 1
+    S = c - d; n0 = n * (n - 1) / 2.0
+    tx = list(collections.Counter(xs).values())
+    ty = list(collections.Counter(ys).values())
+    n1 = sum(t * (t - 1) / 2.0 for t in tx); n2 = sum(u * (u - 1) / 2.0 for u in ty)
+    tau = S / math.sqrt((n0 - n1) * (n0 - n2))
+    v0 = n * (n - 1) * (2 * n + 5)
+    vt = sum(t * (t - 1) * (2 * t + 5) for t in tx)
+    vu = sum(u * (u - 1) * (2 * u + 5) for u in ty)
+    v1 = (sum(t * (t - 1) for t in tx) * sum(u * (u - 1) for u in ty)) / (2.0 * n * (n - 1))
+    v2 = (sum(t * (t - 1) * (t - 2) for t in tx) * sum(u * (u - 1) * (u - 2) for u in ty)) \
+         / (9.0 * n * (n - 1) * (n - 2))
+    var = (v0 - vt - vu) / 18.0 + v1 + v2
+    return tau, math.erfc(abs(S / math.sqrt(var)) / math.sqrt(2))
+
+
+def _sparse_xticks(ax, years, pos=None, size=8):
+    """Label every 5th year (plus the last) so 30+ year axes stay legible."""
+    pos = list(range(len(years))) if pos is None else list(pos)
+    keep = [i for i, y in enumerate(years) if int(y) % 5 == 0 or i == len(years) - 1]
+    ax.set_xticks([pos[i] for i in keep])
+    ax.set_xticklabels([str(years[i]) for i in keep], size=size)
 
 
 # ================= BUILD PDF =================
@@ -118,10 +167,13 @@ summary = (
     "Derive a single metric that classifies a geographic location as biodiversity 'good' or 'bad',\n"
     "using a global archive of wildlife sound recordings and their metadata.\n\n"
     "DATA\n"
-    f"  -  {N_RECORDINGS:,} recordings across 5 continents (Xeno-canto), each with 42 acoustic indices\n"
-    "     computed by a SLURM batch pipeline (compute_indice.py over Butterworth-filtered audio).\n"
-    f"  -  Metadata flattened from {N_META:,} API records (species, coordinates, quality, device).\n"
-    "  -  Acoustic scores joined to metadata on recording id (>99.99% match).\n\n"
+    f"  -  {N_RECORDINGS:,} recordings across 5 continents (Xeno-canto, 1886-2025); {N_RECORDINGS - N_EXTRA:,} of\n"
+    "     them carry 40 acoustic-index columns (16 indices) from a SLURM batch pipeline\n"
+    "     (compute_indice.py, filtered audio).\n"
+    f"  -  Metadata flattened from {N_META:,} API records, plus {N_EXTRA:,} older recordings merged\n"
+    "     in with their own metadata and indices (merged_metadata_all.csv).\n"
+    "  -  Those merged indices come from different settings (Bioacoustic ~36x ours on the same\n"
+    f"     clips), so their {N_EXTRA_GEO:,} geolocated rows count toward richness but NOT index means.\n\n"
     "METHOD\n"
     f"  1. Aggregate all recordings into 0.1-degree (~11 km) grid cells -> {N_CELLS:,} cells.\n"
     "  2. Per cell, compute species richness from recorded species (genus+species and the\n"
@@ -214,8 +266,8 @@ fig.text(0.10, 0.70, 'Median richness by continent (well-sampled cells)', size=1
 limit_txt = (
     "KEY LIMITATIONS (must accompany any use of this metric)\n"
     "  1. Acoustic indices are non-predictive here. ACI/ADI/NDSI etc. were built for\n"
-    "     passive soundscape monitoring; 69% of archive clips are single-target\n"
-    "     recordings (median 24 s), so per-clip indices do not reflect site diversity.\n"
+    "     passive soundscape monitoring; 68% of archive clips (median length 27 s) are\n"
+    "     single-target recordings, so per-clip indices do not reflect site diversity.\n"
     "  2. 'Richness' = RECORDED species, not true species. It reflects recordist effort\n"
     "     and interest. Rarefaction controls sample SIZE but not observer bias.\n"
     "  3. Weak latitude gradient. Effort-controlled richness is nearly flat across\n"
@@ -239,13 +291,13 @@ pp.savefig(fig); plt.close(fig)
 
 # ---- Page 5: year-by-year ----
 import os
-if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv'):
+if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv') and RY:
     yr = csv.reader(open('grid_cells_yearly.csv', newline='')); yh = next(yr); yi = {c: i for i, c in enumerate(yh)}
     trend = collections.defaultdict(lambda: collections.defaultdict(list))
     cellyears = collections.defaultdict(set); scored_cy = 0
     for row in yr:
         s = row[yi['S_rare10']]
-        if s != '':
+        if s != '' and row[yi['year']] in RY:
             trend[row[yi['year']]][row[yi['continent']]].append(float(s))
             cellyears[(row[yi['lat_cell']], row[yi['lon_cell']])].add(row[yi['year']])
             scored_cy += 1
@@ -261,6 +313,8 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     n_tracked = sum(dirc.values())
 
     fig = plt.figure(figsize=(11.69, 8.27))
+    fig.text(0.5, 0.905, f'years with >= {MIN_YEAR_CELLS} scored cells; per-cell change uses every year',
+             ha='center', size=8.5, style='italic', color='#666')
     fig.suptitle(f'Year-by-year ({YEARS[0]}-{YEARS[-1]}): temporal slices of the metric', size=14, weight='bold')
     # left: trend lines
     ax1 = fig.add_axes([0.07, 0.32, 0.42, 0.50])
@@ -271,6 +325,7 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     gall = [sorted(v for c in conts for v in trend[y][c]) for y in YEARS]
     ax1.plot(YEARS, [g[len(g) // 2] for g in gall], marker='s', color='black', lw=2.4, label='ALL')
     ax1.set_ylabel('Median richness (S_rare10)'); ax1.set_title('Recorded-richness trend by continent', size=11)
+    _sparse_xticks(ax1, YEARS)
     ax1.grid(True, lw=0.3, color='#eee'); ax1.legend(fontsize=8, ncol=2)
     # right: change histogram
     ax2 = fig.add_axes([0.57, 0.32, 0.38, 0.50])
@@ -283,7 +338,7 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     dip_last = gall[-1][len(gall[-1]) // 2] if gall[-1] else float('nan')
     note = (
         f"COVERAGE: {scored_cy:,} scored cell-years; {n_tracked} cells scored in >=2 years, {n_all3} in all {NYEARS}.\n\n"
-        f"CAUTION: even an {NYEARS}-year window cannot show real biodiversity change. These movements reflect\n"
+        f"CAUTION: even {NYEARS} years of data cannot show real biodiversity change. These movements reflect\n"
         "WHICH cells were recorded and by WHOM each year (effort + observer turnover), not\n"
         f"ecological gain or loss. The global change ({dip_first:.1f} -> {dip_last:.1f}) tracks recording effort, not nature.\n"
         "Use year slices to study sampling coverage over time -- not as a biodiversity time series.\n\n"
@@ -296,10 +351,10 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
 else:
     npages = 4
 
-# ---- Page 6: ten-year findings (2015-2025) ----
+# ---- Page 6: long-run findings ----
 # Synthesis page. All figures derived from the data at runtime; the only literal
 # is the reference |rho| from the smaller 2023-2025 subset (a documented prior).
-if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv'):
+if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv') and RY:
     PRIOR_RHO = 0.16  # best |Spearman rho| on the 2023-2025 gap-inclusive subset
 
     # global median effort-controlled richness per year (all continents pooled)
@@ -307,7 +362,7 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     by_year = collections.defaultdict(list); tracked_years = collections.defaultdict(set)
     for row in yr:
         s = row[yj['S_rare10']]
-        if s != '':
+        if s != '' and row[yj['year']] in RY:
             by_year[row[yj['year']]].append(float(s))
             tracked_years[(row[yj['lat_cell']], row[yj['lon_cell']])].add(row[yj['year']])
     F_YEARS = sorted(by_year)
@@ -323,29 +378,30 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     n_ch = sum(fdir.values())
 
     fig = plt.figure(figsize=(8.27, 11.69))  # A4 portrait
-    fig.text(0.5, 0.955, 'Ten-Year Findings (2015-2025)', ha='center', size=18, weight='bold')
-    fig.text(0.5, 0.930, 'What the decade-scale data adds to the analysis', ha='center',
+    fig.text(0.5, 0.955, f'Long-Run Findings ({F_YEARS[0]}-{F_YEARS[-1]})', ha='center', size=18, weight='bold')
+    fig.text(0.5, 0.930, 'What the multi-decade data adds to the analysis', ha='center',
              size=10, style='italic', color='#555')
 
     findings = (
         f"1.  MORE DATA MADE THE ACOUSTIC INDICES LOOK WORSE, NOT BETTER.\n"
-        f"    Expanding from the 2023-2025 subset to the full 2015-2025 archive\n"
-        f"    ({N_RECORDINGS:,} recordings, {N_USABLE:,} scored cells) shrank the best index\n"
-        f"    correlation from |rho| ~ {PRIOR_RHO:.2f} to ~ {BEST_RHO:.2f}. A real signal sharpens\n"
-        f"    with more data; this faded toward zero -- the strongest evidence yet\n"
-        f"    that the indices carry no site-biodiversity signal in this archive.\n\n"
-        f"2.  A DECADE OF EFFORT-CONTROLLED RICHNESS IS ESSENTIALLY FLAT.\n"
+        f"    Expanding from the 2023-2025 subset to the full 1886-2025 archive\n"
+        f"    ({N_RECORDINGS - N_EXTRA:,} pipeline-scored recordings, {N_IDX_CELLS:,} scored cells with index\n"
+        f"    means) shrank the best index correlation from |rho| ~ {PRIOR_RHO:.2f} to ~ {BEST_RHO:.2f}.\n"
+        f"    A real signal sharpens with more data; this faded toward zero. (Index means\n"
+        f"    use only recordings processed by this pipeline; the {N_EXTRA:,} merged older\n"
+        f"    ones add richness only.)\n\n"
+        f"2.  {F_NY} YEARS OF EFFORT-CONTROLLED RICHNESS ARE ESSENTIALLY FLAT.\n"
         f"    Global median S_rare10 stays within {flat_lo:.1f}-{flat_hi:.1f} across all {F_NY} years\n"
         f"    ({F_YEARS[0]}->{F_YEARS[-1]}: {med_series[0]:.1f} -> {med_series[-1]:.1f}). This reframes the metric as a\n"
-        f"    sampling-effort measure, not ecology. The only structure is a mild\n"
-        f"    recent dip that tracks the incompleteness of recent uploads.\n\n"
+        f"    sampling-effort measure, not ecology. The early years swing most,\n"
+        f"    on the fewest scored cells.\n\n"
         f"3.  TEMPORAL CHANGE IS A COIN-FLIP (RANDOM-WALK SIGNATURE).\n"
         f"    Of {n_ch:,} cells tracked across >=2 years, {fdir['up']:,} rose and {fdir['down']:,} fell\n"
-        f"    (flat={fdir['flat']:,}). That near-perfect symmetry over a decade is the\n"
+        f"    (flat={fdir['flat']:,}). That near-perfect symmetry over {F_NY} years is the\n"
         f"    fingerprint of observer turnover and noise, not directional change.\n\n"
-        f"4.  SPATIALLY DECADE-RICH, BUT TEMPORALLY STILL STARVED.\n"
+        f"4.  SPATIALLY RICH, BUT TEMPORALLY STILL STARVED.\n"
         f"    Coverage grew to {N_CELLS:,} cells / {N_USABLE:,} scored -- a much denser map --\n"
-        f"    yet only {n_all:,} cells were recorded in all {F_NY} years ({n_tracked2:,} in >=2).\n"
+        f"    yet only {n_all:,} cells were scored in all {F_NY} years ({n_tracked2:,} in >=2 of them).\n"
         f"    The biodiversity MAP is far stronger; a true TIME SERIES remains\n"
         f"    impossible from this data.\n"
     )
@@ -359,22 +415,23 @@ if os.path.exists('grid_cells_yearly.csv') and os.path.exists('cell_change.csv')
     ax.set_ylabel('Global median S_rare10'); ax.set_title(
         f'Effort-controlled richness barely moves over {F_NY} years (band = {flat_lo:.1f}-{flat_hi:.1f})', size=9.5)
     ax.grid(True, lw=0.3, color='#eee')
-    for lab in ax.get_xticklabels():
-        lab.set_rotation(45); lab.set_fontsize(8)
+    _sparse_xticks(ax, F_YEARS)
 
-    fig.text(0.5, 0.03, 'Acoustic Biodiversity Report  -  page 6  -  ten-year findings', ha='center', size=8, color='#999')
+    fig.text(0.5, 0.03, 'Acoustic Biodiversity Report  -  page 6  -  long-run findings', ha='center', size=8, color='#999')
     pp.savefig(fig); plt.close(fig)
     npages += 1
 
-# ---- Page 7: yearwise effort vs. metric (2015-2025) ----
+# ---- Page 7: yearwise effort vs. metric ----
 # Recording effort (bars, per continent) rose sharply while the effort-controlled
 # metric stayed flat; the apparent recent dip is a sampling artifact, not ecology.
-if os.path.exists('grid_cells_yearly.csv'):
+if os.path.exists('grid_cells_yearly.csv') and RY:
     yr = csv.reader(open('grid_cells_yearly.csv', newline='')); yh = next(yr); yj = {c: i for i, c in enumerate(yh)}
     recCY = collections.defaultdict(lambda: collections.defaultdict(int))
     richY = collections.defaultdict(list); cellsY = collections.Counter()
     for row in yr:
         y = row[yj['year']]; cont = row[yj['continent']]
+        if y not in RY:
+            continue
         try:
             nr = int(row[yj['n_rec']])
         except ValueError:
@@ -405,7 +462,7 @@ if os.path.exists('grid_cells_yearly.csv'):
         v = [recCY[y][c] for y in YRS]
         ax1.bar(xs, v, bottom=bottom, color=ycol[c], label=c, width=0.72, edgecolor='white', linewidth=0.4)
         bottom = [b + a for b, a in zip(bottom, v)]
-    ax1.set_xticks(xs); ax1.set_xticklabels([y[2:] for y in YRS])
+    _sparse_xticks(ax1, YRS)
     ax1.set_ylabel('recordings in cells')
     ax1.legend(ncol=5, fontsize=8, loc='upper left', frameon=False)
     ax1.set_title(f"Recording effort behind the metric, by continent  ({totals[0]:,} -> {totals[-1]:,}, +{100*(totals[-1]-totals[0])//totals[0]}%)",
@@ -415,45 +472,49 @@ if os.path.exists('grid_cells_yearly.csv'):
     ax2 = fig.add_axes([0.08, 0.12, 0.86, 0.31])
     ax2.bar(xs, cells, color='#c9d2c9', width=0.72, alpha=0.85)
     ax2.set_ylabel('scored cells (n>=10)'); ax2.set_ylim(0, max(cells) * 1.3)
-    ax2.set_xticks(xs); ax2.set_xticklabels([y[2:] for y in YRS])
+    _sparse_xticks(ax2, YRS)
     ax2.grid(True, axis='y', lw=0.3, color='#eee')
     ax3 = ax2.twinx()
     ax3.axhspan(min(med), max(med), color='#4575b4', alpha=0.08)
     ax3.plot(xs, med, color='#333', lw=2.2, marker='o', ms=5, mfc='#4575b4', mec='#333')
     for i, m in enumerate(med):
+        if int(YRS[i]) % 5 and i != len(med) - 1:
+            continue
         ax3.annotate(f'{m:.1f}', (xs[i], m), textcoords='offset points', xytext=(0, 8),
                      ha='center', size=8, weight='bold')
-    ax3.set_ylim(6, 13); ax3.set_ylabel('median S_rare10')
-    pk = med.index(max(med))  # highlight the apparent post-peak decline
+    ax3.set_ylim(min(med) - 2, max(med) + 2); ax3.set_ylabel('median S_rare10')
+    # highlight the apparent recent decline: peak of the last decade -> final year
+    _recent = [i for i, y in enumerate(YRS) if int(y) >= int(YRS[-1]) - 10]
+    pk = max(_recent, key=lambda i: med[i])
     if pk < len(med) - 1:
         ax3.annotate('', xy=(xs[-1], med[-1]), xytext=(xs[pk], med[pk]),
                      arrowprops=dict(arrowstyle='->', color='#d73027', lw=1.4, alpha=0.85))
-        ax3.text(xs[-1], med[-1] - 0.1, f'  apparent -{max(med) - med[-1]:.1f}\n  (sampling, not ecology)',
+        ax3.text(xs[-1], med[-1] - 0.1, f'  apparent -{med[pk] - med[-1]:.1f} since {YRS[pk]}\n  (sampling, not ecology)',
                  color='#d73027', size=7.5, va='top', ha='right')
     ax2.set_title(f"Scored cells grew {cells[0]:,} -> {cells[-1]:,}; median richness stayed flat ({min(med):.1f}-{max(med):.1f} band)",
                   size=10, loc='left')
 
     note = (
         "Bars = recording EFFORT (geolocated recordings entering the metric); line = effort-controlled median\n"
-        "richness. Effort rose ~70% over the decade while the metric stayed inside a narrow band. The apparent\n"
-        "recent dip (red arrow) is NOT ecological degradation: it tracks the lower completeness of recent uploads\n"
-        "and shifting recordist coverage. Do not read the decline as biodiversity loss."
+        f"richness. Effort rose {100*(totals[-1]-totals[0])//totals[0]:,}% ({YRS[0]}-{YRS[-1]}) while the metric stayed in a band. The\n"
+        "apparent dip (red arrow) is NOT ecological degradation: it tracks recent-upload completeness and\n"
+        "shifting recordist coverage. Do not read the decline as biodiversity loss."
     )
     fig.text(0.08, 0.095, note, ha='left', va='top', size=8.6, family='monospace')
-    fig.text(0.5, 0.03, 'Acoustic Biodiversity Report  -  page 7  -  yearwise', ha='center', size=8, color='#999')
+    fig.text(0.5, 0.008, 'Acoustic Biodiversity Report  -  page 7  -  yearwise', ha='center', size=8, color='#999')
     pp.savefig(fig); plt.close(fig)
     npages += 1
 
-# ---- Page 8: biome-wise year-by-year change (2015-2025) ----
+# ---- Page 8: biome-wise year-by-year change ----
 # Splits the yearly richness series by BIOME. Cells take the modal biome of their
-# recordings (build_biome_yearly.py); 99.4% of recordings sit in their cell's
+# recordings (build_biome_yearly.py); 99.3% of recordings sit in their cell's
 # modal biome, so the assignment is near-unambiguous.
-if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
+if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv') and len(RY) >= 5:
     import numpy as _np
 
     br = list(csv.DictReader(open('biome_yearly.csv', newline='')))
     bc = list(csv.DictReader(open('biome_change.csv', newline='')))
-    B_YEARS = sorted({r['year'] for r in br})
+    B_YEARS = sorted({r['year'] for r in br} & RY)
     B_ORDER = [r['biome_name'] for r in bc]   # most recordings first
     lookup = {(r['biome_name'], r['year']): r for r in br}
     MINC = 5
@@ -466,8 +527,31 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
                 grid[i, j] = float(r['median_S_rare10'])
     gmid = _np.nanmedian(grid)
 
+    # deltas and jitter over the plotted points only (>= MINC cells): biome_change.csv's
+    # delta runs from each biome's first scored year, which can precede the chart
+    bdelta, bjump, bspan = [], [], []
+    _steps = []   # (scored cells of the thinner year, |step|) between consecutive plotted years
+    for i in range(len(B_ORDER)):
+        _p = [(B_YEARS[j], grid[i, j], int(lookup[(B_ORDER[i], B_YEARS[j])]['n_scored_cells']))
+              for j in range(len(B_YEARS)) if grid[i, j] == grid[i, j]]
+        bdelta.append(_p[-1][1] - _p[0][1] if len(_p) >= 2 else float('nan'))
+        bjump.append(max((abs(b[1] - a[1]) for a, b in zip(_p, _p[1:])), default=float('nan')))
+        bspan.append(f'{_p[0][0]}->{_p[-1][0]}' if _p else '')
+        _steps += [(min(a[2], b[2]), abs(b[1] - a[1])) for a, b in zip(_p, _p[1:])]
+    _thin = [v for c, v in _steps if c < 20]
+    _thick = [v for c, v in _steps if c >= 100]
+    # per-biome Kendall tau over the same plotted points (the Silent Signal page's Result 05)
+    _bt = []
+    for i in range(len(B_ORDER)):
+        _p = [(int(B_YEARS[j]), grid[i, j]) for j in range(len(B_YEARS)) if grid[i, j] == grid[i, j]]
+        if len(_p) >= 5:
+            _bt.append((B_ORDER[i], _kendall([x for x, _ in _p], [v for _, v in _p])[1]))
+    _bonf = 0.05 / len(_bt) if _bt else 0.0
+    _nom = [b for b, pv in _bt if pv < 0.05]
+    _surv = [b for b, pv in _bt if pv < _bonf]
+
     fig = plt.figure(figsize=(8.27, 11.69))  # A4 portrait
-    fig.text(0.5, 0.962, 'Year-by-Year Change by Biome (2015-2025)',
+    fig.text(0.5, 0.962, f'Year-by-Year Change by Biome ({B_YEARS[0]}-{B_YEARS[-1]})',
              ha='center', size=16, weight='bold')
     fig.text(0.5, 0.940, 'Effort-controlled richness (S_rare10) split by terrestrial biome',
              ha='center', size=9, style='italic', color='#555')
@@ -475,12 +559,13 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
     L, W = 0.335, 0.545        # shared left edge / width for both panels
     # ---- heatmap ----
     axh = fig.add_axes([L, 0.605, W, 0.295])
-    im = axh.imshow(grid, aspect='auto', cmap='RdYlBu', vmin=gmid - 3, vmax=gmid + 3)
-    axh.set_xticks(range(len(B_YEARS)))
-    axh.set_xticklabels([y[2:] for y in B_YEARS], size=8)
+    _cm = plt.get_cmap('RdYlBu').copy(); _cm.set_bad('#eeeeee')
+    im = axh.imshow(grid, aspect='auto', cmap=_cm, vmin=gmid - 3, vmax=gmid + 3)
+    _sparse_xticks(axh, B_YEARS)
+    CELL_TEXT = len(B_YEARS) <= 16   # per-cell numbers only fit on short series
     axh.set_yticks(range(len(B_ORDER)))
     axh.set_yticklabels([b[:40] for b in B_ORDER], size=7.2)
-    for i in range(len(B_ORDER)):
+    for i in range(len(B_ORDER) if CELL_TEXT else 0):
         for j in range(len(B_YEARS)):
             v = grid[i, j]
             if _np.isnan(v):
@@ -491,7 +576,7 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
             axh.text(j, i, '-' if _np.isnan(v) else f'{v:.1f}', ha='center',
                      va='center', size=6.0, color=col,
                      weight='bold' if not _np.isnan(v) and abs(v - gmid) > 2.2 else 'normal')
-    axh.set_title(f'Median S_rare10 per biome-year   (- = fewer than {MINC} scored cells)',
+    axh.set_title(f'Median S_rare10 per biome-year   (grey = fewer than {MINC} scored cells)',
                   size=9, loc='left')
     cax = fig.add_axes([L + W + 0.075, 0.605, 0.014, 0.295])
     cb = fig.colorbar(im, cax=cax); cb.ax.tick_params(labelsize=7)
@@ -501,8 +586,9 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
     axd.set_ylim(len(B_ORDER) - 0.5, -0.5)   # match imshow row coords exactly
     axd.set_xlim(0, 1)
     axd.text(0.5, -0.9, 'delta', ha='center', size=7.5, weight='bold')
-    for i, r in enumerate(bc):
-        d = float(r['delta'])
+    for i, d in enumerate(bdelta):
+        if d != d:
+            continue
         axd.text(0.5, i, f'{d:+.1f}', ha='center', va='center', size=7.2,
                  color='#d73027' if d < -0.5 else ('#1a9850' if d > 0.5 else '#888'),
                  weight='bold' if abs(d) > 0.5 else 'normal')
@@ -531,22 +617,40 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
                   size=9, loc='left')
 
     # ---- narrative, full width below both panels ----
-    worst = max(bc, key=lambda r: abs(float(r['delta'])))
+    _wi = max((i for i in range(len(B_ORDER)) if bdelta[i] == bdelta[i]), key=lambda i: abs(bdelta[i]))
+    _n_jit = sum(1 for d, j in zip(bdelta, bjump) if d == d and j >= abs(d))
+    _bw = next((r for r in bc if r['biome_name'] == B_ORDER[_wi]), None)   # biome_change.csv row
+    _n_d = sum(1 for d in bdelta if d == d)
     t_up = sum(int(r['cells_up']) for r in bc)
     t_dn = sum(int(r['cells_down']) for r in bc)
+    _steps_txt = (
+        (f"steps touching a year with < 20 scored cells have a median of\n"
+         f"{_np.median(_thin):.1f} (max {max(_thin):.1f}); steps between years with >= 100 cells, {_np.median(_thick):.1f} (max {max(_thick):.1f}).")
+        if _thin and _thick else "the thinnest biome-years carry the largest steps.")
+    _test_txt = ((
+        f"TESTED YEAR BY YEAR (Kendall tau on each plotted series), {len(_nom)} of {len(_bt)} biomes reach\n"
+        f"p < 0.05 -- about the {0.05 * len(_bt):.1f} expected by chance -- and "
+        + (f"none survives Bonferroni\n(smallest p = {min(pv for _, pv in _bt):.3f} vs {_bonf:.4f})." if not _surv else
+           f"{len(_surv)} survive(s) Bonferroni\n(p < {_bonf:.4f}): {', '.join(b[:30] for b in _surv)}."))
+        if _bt else "NOT TESTED: no biome has the 5 plotted years a per-biome Kendall test needs.")
     note = (
-        "NO BIOME SHOWS COHERENT DIRECTIONAL CHANGE.\n\n"
-        f"Every biome's year-to-year jitter is as large as its {B_YEARS[0]}->{B_YEARS[-1]} delta, and the cells\n"
-        f"tracked inside each biome split close to 50/50 ({t_up:,} up vs {t_dn:,} down overall). The\n"
-        f"largest delta -- {worst['biome_name'][:38]} at {float(worst['delta']):+.1f} -- rests on a series\n"
-        "that swings by more than that between adjacent years.\n\n"
+        ("NO BIOME SHOWS COHERENT DIRECTIONAL CHANGE.\n\n" if not _surv else
+         "MOST BIOMES SHOW NO COHERENT DIRECTIONAL CHANGE.\n\n")
+        + f"{_test_txt}\n\n"
+        f"In {_n_jit} of {_n_d} biomes one step between consecutive plotted years is at least as\n"
+        f"large as the first->last delta, and the cells tracked inside each biome split close to\n"
+        f"50/50 ({t_up:,} up vs {t_dn:,} down overall). The largest delta -- {B_ORDER[_wi][:38]}\n"
+        f"at {bdelta[_wi]:+.1f} ({bspan[_wi]}) -- rests on a series whose largest single step is {bjump[_wi]:.1f}.\n"
+        + (f"Counted from its first year with >= 5 scored cells ({_bw['first_year']}, as biome_change.csv and the\n"
+           f"Silent Signal page do), the same delta is {float(_bw['delta']):+.1f}: its {'sign' if float(_bw['delta']) * bdelta[_wi] < 0 else 'size'} depends on where the series starts.\n\n"
+           if _bw and _bw['delta'] != '' and _bw['first_year'] != bspan[_wi][:4] else "\n") +
         "READ THIS AS SAMPLING, NOT ECOLOGY. S_rare10 controls for the NUMBER of recordings in\n"
         "a cell, but not for who recorded, for how long, or with what target. A biome's series\n"
-        "therefore moves as its recordist community turns over. The biomes with the fewest\n"
-        "recordings -- Tundra, Mangroves, Flooded Grasslands -- swing hardest, which is the\n"
-        "signature of small samples rather than of habitat change.\n\n"
-        "METHOD. Each 0.1-degree cell takes the modal biome of the recordings inside it. 99.4% of\n"
-        "recordings fall in their cell's modal biome and only 1.6% of cells span more than one,\n"
+        "therefore moves as its recordist community turns over, and it swings hardest where a\n"
+        f"biome-year rests on few cells: {_steps_txt}\n"
+        "That is the signature of small samples rather than of habitat change.\n\n"
+        "METHOD. Each 0.1-degree cell takes the modal biome of the recordings inside it. 99.3% of\n"
+        "recordings fall in their cell's modal biome and only 1.8% of cells span more than one,\n"
         "so boundary cells cannot drive these patterns. Biomes are ordered by recording volume."
     )
     fig.text(0.075, 0.315, note, ha='left', va='top', size=8.2, family='monospace')
@@ -558,25 +662,26 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
 # ---- Page 9: each biome's series on its own axes (small multiples) ----
 # The page-8 heatmap compares biomes; this page reads each biome one at a time,
 # with its own recording effort behind it so jitter can be traced to sample size.
-if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
+if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv') and len(RY) >= 5:
     import numpy as _np
 
     br9 = list(csv.DictReader(open('biome_yearly.csv', newline='')))
     bc9 = list(csv.DictReader(open('biome_change.csv', newline='')))
-    Y9 = sorted({r['year'] for r in br9})
+    Y9 = sorted({r['year'] for r in br9} & RY)
     ORDER9 = [r['biome_name'] for r in bc9]
     look9 = {(r['biome_name'], r['year']): r for r in br9}
     MINC9 = 5
 
     ncol, nrow = 3, 5
     fig = plt.figure(figsize=(8.27, 11.69))
-    fig.text(0.5, 0.968, 'Each Biome, Year by Year (2015-2025)', ha='center',
+    fig.text(0.5, 0.968, f'Each Biome, Year by Year ({Y9[0]}-{Y9[-1]})', ha='center',
              size=16, weight='bold')
     fig.text(0.5, 0.947,
              'Line = median S_rare10 (left axis).  Bars = recordings entering the metric (right axis).',
              ha='center', size=8.5, style='italic', color='#555')
 
     xs9 = _np.arange(len(Y9))
+    _n9 = _n9_jit = 0
     for i, b in enumerate(ORDER9):
         rr, cc = divmod(i, ncol)
         ax = fig.add_axes([0.085 + cc * 0.305, 0.790 - rr * 0.150, 0.235, 0.100])
@@ -595,24 +700,41 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
         ax.set_zorder(axe.get_zorder() + 1); ax.patch.set_visible(False)
         ax.set_ylim(3, 15)
         ax.set_yticks([5, 10, 15]); ax.tick_params(labelsize=6.2)
-        ax.set_xticks(xs9[::2]); ax.set_xticklabels([y[2:] for y in Y9[::2]], size=6.2)
+        _k = [j for j, y in enumerate(Y9) if int(y) % 10 == 0 or j == len(Y9) - 1]
+        ax.set_xticks([xs9[j] for j in _k]); ax.set_xticklabels([Y9[j] for j in _k], size=6.2)
         ax.grid(True, axis='y', lw=0.3, color='#eee', zorder=0)
-        d = float(bc9[i]['delta'])
+        _v9 = [v for v in med9 if v == v]   # plotted points only, as on page 8
+        d = _v9[-1] - _v9[0] if len(_v9) >= 2 else 0.0
+        if len(_v9) >= 2:
+            _n9 += 1
+            _n9_jit += max(abs(b2 - a2) for a2, b2 in zip(_v9, _v9[1:])) >= abs(d)
         ax.set_title(f"{b[:34]}", size=6.9, loc='left', pad=8)
         ax.text(0, 1.015, f"n={int(bc9[i]['total_recordings']):,}   delta {d:+.1f}",
                 transform=ax.transAxes, size=5.9,
                 color='#d73027' if d < -0.5 else ('#1a9850' if d > 0.5 else '#777'))
 
+    _tbn = next((b for b in ORDER9 if b.startswith('Temperate Broadleaf')), ORDER9[0])
+    _tb = next(int(r['total_recordings']) for r in bc9 if r['biome_name'] == _tbn)
+
+    def _pts9(b):   # (median, scored cells) at each plotted year
+        return [(float(look9[(b, y)]['median_S_rare10']), int(look9[(b, y)]['n_scored_cells']))
+                for y in Y9 if (b, y) in look9 and look9[(b, y)]['median_S_rare10'] != ''
+                and int(look9[(b, y)]['n_scored_cells']) >= MINC9]
+    _tb_all = [v for v, n in _pts9(_tbn)]
+    _tb_big = [v for v, n in _pts9(_tbn) if n >= 100]
+    _n_nobig = sum(1 for b in ORDER9 if not any(n >= 100 for v, n in _pts9(b)))
     note9 = (
         "Every panel is drawn on the SAME richness axis (3-15), so the series can be compared\n"
         "directly. Read the grey bars first: where effort is small the line is jagged, and where\n"
-        "effort is large it is flat. That is the whole pattern -- Tundra, Mangroves and Flooded\n"
-        "Grasslands swing by several species between adjacent years on a few hundred recordings,\n"
-        "while Temperate Broadleaf & Mixed Forests, with 314,620, barely moves.\n\n"
-        "No panel shows a monotonic decade-long trend. The deltas printed above each panel are\n"
-        "first-vs-last-year differences, not fitted trends, and in every biome the year-to-year\n"
-        "jitter is at least as large as the delta -- so none of them is distinguishable from noise."
-    )
+        "it is large the line is flat -- most clearly within one biome. %s\n"
+        f"({_tb:,} recordings) spans {min(_tb_all):.1f}-{max(_tb_all):.1f} over the chart, but only {min(_tb_big or [0]):.1f}-{max(_tb_big or [0]):.1f}\n"
+        f"across its {len(_tb_big)} years with >= 100 scored cells. {_n_nobig} of {len(ORDER9)} biomes never reach 100\n"
+        "scored cells in a year, and their lines stay jagged throughout.\n\n"
+        "No panel shows a monotonic long-run trend. The deltas printed above each panel are\n"
+        "first-vs-last plotted-year differences, not fitted trends; in %d of %d biomes a single step\n"
+        "between consecutive plotted years is at least as large as the delta, so a delta alone\n"
+        "does not separate change from noise."
+    ) % (_tbn.replace(' & Mixed Forests', ''), _n9_jit, _n9)
     fig.text(0.085, 0.150, note9, ha='left', va='top', size=7.6, family='monospace')
     fig.text(0.5, 0.012, 'Acoustic Biodiversity Report  -  page 9  -  biome series',
              ha='center', size=8, color='#999')
@@ -620,32 +742,34 @@ if os.path.exists('biome_yearly.csv') and os.path.exists('biome_change.csv'):
     npages += 1
 
 # ---- Page 10: urban class (city/town/rural) year by year ----
-if os.path.exists('urban_yearly.csv') and os.path.exists('urban_change.csv'):
+if os.path.exists('urban_yearly.csv') and os.path.exists('urban_change.csv') and RY:
     import numpy as _np
 
     ur = list(csv.DictReader(open('urban_yearly.csv', newline='')))
     uc = list(csv.DictReader(open('urban_change.csv', newline='')))
-    UY = sorted({r['year'] for r in ur})
+    UY = sorted({r['year'] for r in ur} & RY)
     UCLS = ['city', 'town', 'rural']
     ulook = {(r['urban_class'], r['year']): r for r in ur}
     UCOL = {'city': '#d73027', 'town': '#f0a24a', 'rural': '#1a9850'}
     MINU = 5
     LAST_LABELLED = max(r['year'] for r in ur if r['class_carried_forward'] == '0')
+    FIRST_LABELLED = min(r['year'] for r in ur if r['class_carried_forward'] == '0')
 
     fig = plt.figure(figsize=(8.27, 11.69))
-    fig.text(0.5, 0.962, 'Year-by-Year Change by Urban Class (2015-2025)',
+    fig.text(0.5, 0.962, f'Year-by-Year Change by Urban Class ({UY[0]}-{UY[-1]})',
              ha='center', size=16, weight='bold')
     fig.text(0.5, 0.940, 'Effort-controlled richness (S_rare10) for city / town / rural cells',
              ha='center', size=9, style='italic', color='#555')
 
     xs = _np.arange(len(UY))
-    cut = UY.index(LAST_LABELLED)
+    cut = bisect.bisect_right(UY, LAST_LABELLED) - 1   # last plotted year with a real class
+    cut0 = bisect.bisect_left(UY, FIRST_LABELLED)      # first plotted year with a real class
 
     # ---- richness series ----
     ax = fig.add_axes([0.11, 0.60, 0.80, 0.29])
     ax.axvspan(cut + 0.5, len(UY) - 0.5, color='#f2f2f2', zorder=0)
-    ax.text(len(UY) - 0.55, 11.75, 'class carried forward\n(no GCTB polygons)', ha='right',
-            va='top', size=7, color='#888', style='italic')
+    ax.axvspan(-0.5, cut0 - 0.5, color='#f2f2f2', zorder=0)
+    _uall = []
     for u in UCLS:
         vals = []
         for y in UY:
@@ -653,9 +777,14 @@ if os.path.exists('urban_yearly.csv') and os.path.exists('urban_change.csv'):
             ok = r and r['median_S_rare10'] != '' and int(r['n_scored_cells']) >= MINU
             vals.append(float(r['median_S_rare10']) if ok else _np.nan)
         ax.plot(xs, vals, color=UCOL[u], lw=1.9, marker='o', ms=4, label=u, zorder=3)
+        _uall += [v for v in vals if v == v]
+    _uhi = max(13, max(_uall) + 0.5)
+    ax.text(cut0 - 0.7, _uhi - 0.25, 'class carried back\n(no GCTB polygons)', ha='right',
+            va='top', size=7, color='#888', style='italic')
     ax.axvline(cut + 0.5, color='#999', lw=1.0, ls='--', zorder=2)
-    ax.set_xticks(xs); ax.set_xticklabels([y[2:] for y in UY], size=8)
-    ax.set_ylim(6, 12); ax.set_ylabel('median S_rare10', size=8.5)
+    ax.axvline(cut0 - 0.5, color='#999', lw=1.0, ls='--', zorder=2)
+    _sparse_xticks(ax, UY)
+    ax.set_ylim(min(6, min(_uall) - 0.5), _uhi); ax.set_ylabel('median S_rare10', size=8.5)
     ax.tick_params(labelsize=8)
     ax.grid(True, axis='y', lw=0.3, color='#eee')
     ax.legend(ncol=3, fontsize=8, frameon=False, loc='lower left')
@@ -668,9 +797,10 @@ if os.path.exists('urban_yearly.csv') and os.path.exists('urban_change.csv'):
         eff = [int(ulook[(u, y)]['n_recordings']) if (u, y) in ulook else 0 for y in UY]
         ax2.bar(xs + (i - 1) * wdt, eff, width=wdt, color=UCOL[u], label=u, alpha=0.85)
     ax2.set_yscale('log'); ax2.set_ylabel('recordings (log)', size=8.5)
-    ax2.set_xticks(xs); ax2.set_xticklabels([y[2:] for y in UY], size=8)
+    _sparse_xticks(ax2, UY)
     ax2.tick_params(labelsize=7.5)
     ax2.axvline(cut + 0.5, color='#999', lw=1.0, ls='--')
+    ax2.axvline(cut0 - 0.5, color='#999', lw=1.0, ls='--')
     ax2.grid(True, axis='y', lw=0.3, color='#eee')
     ax2.set_title('Recording effort behind each class (log scale)', size=9.5, loc='left')
 
@@ -682,18 +812,19 @@ if os.path.exists('urban_yearly.csv') and os.path.exists('urban_change.csv'):
         f"Over the labelled window ({cty['labelled_first_year']}-{cty['labelled_last_year']}) the city median moves "
         f"{float(cty['delta_labelled_window']):+.1f} and rural {float(rur['delta_labelled_window']):+.1f}. Both are\n"
         "far smaller than the year-to-year jitter in either series, so neither is distinguishable\n"
-        "from noise. The town series (only 719 cells) swings by ~3 species between adjacent\n"
+        "from noise. The town series (only 720 cells) swings by ~3 species between adjacent\n"
         "years, which is what a small sample looks like.\n\n"
         "THE TRACKED CELLS SAY NO CHANGE. Cells followed across >=2 years split\n"
         f"city {cty['cells_up']}/{cty['cells_down']} up/down and rural {rur['cells_up']}/{rur['cells_down']} -- rural is an exact coin flip.\n"
         "A real divergence between urban and rural biodiversity would show up here first,\n"
         "and it does not.\n\n"
-        "COVERAGE CAVEAT. GCTB built-up polygons stop at 2022, so only 510,923 recordings\n"
-        f"({UY[0]}-{LAST_LABELLED}) carry a real class. Urban class is a property of the PLACE, so each\n"
-        "cell's class is carried forward to 2023-2025 (shaded). Those three years rest on an\n"
-        "assumption -- that cells did not change built-up status -- not on measurement.\n\n"
+        "COVERAGE CAVEAT. GCTB built-up polygons cover 2015-2022 only, so only 512,183 recordings\n"
+        f"({FIRST_LABELLED}-{LAST_LABELLED}) carry a real class. Urban class is a property of the PLACE, so\n"
+        f"each cell's class is carried back to {UY[0]} and forward to {UY[-1]} (shaded). Those years rest\n"
+        "on an assumption -- that cells did not change built-up status -- not on measurement,\n"
+        "and it grows weaker the further back it is carried.\n\n"
         "Cells take the modal class of their recordings: 97.0% of recordings fall in their\n"
-        "cell's modal class and 5.8% of cells are mixed (higher than the 1.6% for biomes,\n"
+        "cell's modal class and 5.8% of cells are mixed (higher than the 1.8% for biomes,\n"
         "because city boundaries cut through 0.1-degree cells far more often than biomes do)."
     )
     fig.text(0.075, 0.335, note, ha='left', va='top', size=8.0, family='monospace')
@@ -763,10 +894,10 @@ if os.path.exists('cell_biome.csv'):
         "COVERAGE IS NOT ECOLOGICAL COVERAGE. The map shows where recordists go, not where\n"
         "biomes are. Europe is saturated across a single biome band while whole tropical biomes\n"
         f"are covered by scattered cells: Temperate Broadleaf & Mixed Forests holds {counts[order[0]]:,} cells,\n"
-        f"the three smallest together fewer than {sum(counts[b] for b in order[-3:]):,}. This is the sampling bias behind\n"
+        f"the three least-recorded together only {sum(counts[b] for b in order[-3:]):,}. This is the sampling bias behind\n"
         "every per-biome number here -- a biome comparison is a comparison of recordist\n"
-        "communities as much as of habitats, and the biomes with fewest cells are exactly\n"
-        "those whose yearly series swing hardest on pages 8 and 9.\n\n"
+        "communities as much as of habitats, and the biome-years resting on the fewest\n"
+        "cells are the ones whose series swing hardest on pages 8 and 9.\n\n"
         f"Cells take the modal biome of their recordings; {mixed_cells:,} ({100*mixed_cells/len(cb):.1f}%) contain more than one\n"
         "and are drawn in their majority colour. Polygons: RESOLVE Ecoregions 2017\n"
         "(Dinerstein et al., CC-BY 4.0). Colours are categorical only."
@@ -778,12 +909,12 @@ if os.path.exists('cell_biome.csv'):
     npages += 1
 
 
-# ---- Page 12: is there a ten-year trend? (turnover vs change) ----
+# ---- Page 12: is there a long-run trend? (turnover vs change) ----
 # The question page 5 raises but never tests. Everything here is computed at
 # runtime from grid_cells_yearly.csv. Theil-Sen / Kendall are hand-rolled to
 # avoid a scipy dependency; both were verified against scipy to machine
 # precision (slope, 95% CI, tau-b and its tie-corrected p all agree).
-if os.path.exists('grid_cells_yearly.csv'):
+if os.path.exists('grid_cells_yearly.csv') and len(RY) >= 10:
     def _med(v):
         s = sorted(v); n = len(s)
         return s[n // 2] if n % 2 else 0.5 * (s[n // 2 - 1] + s[n // 2])
@@ -801,33 +932,18 @@ if os.path.exists('grid_cells_yearly.csv'):
         Rl = max(int(round((nt - z * sig) / 2.0)) - 1, 0)
         return med, sl[Rl], sl[Ru]
 
-    def _kendall(xs, ys):
-        n = len(xs); c = d = 0
-        for i in range(n):
-            for j in range(i + 1, n):
-                s = (xs[j] - xs[i]) * (ys[j] - ys[i])
-                if s > 0: c += 1
-                elif s < 0: d += 1
-        S = c - d; n0 = n * (n - 1) / 2.0
-        tx = list(collections.Counter(xs).values())
-        ty = list(collections.Counter(ys).values())
-        n1 = sum(t * (t - 1) / 2.0 for t in tx); n2 = sum(u * (u - 1) / 2.0 for u in ty)
-        tau = S / math.sqrt((n0 - n1) * (n0 - n2))
-        v0 = n * (n - 1) * (2 * n + 5)
-        vt = sum(t * (t - 1) * (2 * t + 5) for t in tx)
-        vu = sum(u * (u - 1) * (2 * u + 5) for u in ty)
-        v1 = (sum(t * (t - 1) for t in tx) * sum(u * (u - 1) for u in ty)) / (2.0 * n * (n - 1))
-        v2 = (sum(t * (t - 1) * (t - 2) for t in tx) * sum(u * (u - 1) * (u - 2) for u in ty)) \
-             / (9.0 * n * (n - 1) * (n - 2))
-        var = (v0 - vt - vu) / 18.0 + v1 + v2
-        return tau, math.erfc(abs(S / math.sqrt(var)) / math.sqrt(2))
 
     _yr = csv.reader(open('grid_cells_yearly.csv', newline='')); _yh = next(_yr)
     _yi = {c: i for i, c in enumerate(_yh)}
     recs = []
+    first = {}   # first scored year per cell, over EVERY year (a cell scored in 1985 is not new in 1990)
     for row in _yr:
         s = row[_yi['S_rare10']]
         if s == '':
+            continue
+        _k = (round(float(row[_yi['lat_cell']]), 1), round(float(row[_yi['lon_cell']]), 1))
+        first[_k] = min(first.get(_k, 9999), int(row[_yi['year']]))
+        if row[_yi['year']] not in RY:
             continue
         recs.append((round(float(row[_yi['lat_cell']]), 1),
                      round(float(row[_yi['lon_cell']]), 1),
@@ -854,8 +970,13 @@ if os.path.exists('grid_cells_yearly.csv'):
         yy = [y for y in TY if len(b[y]) >= 5]
         return keep, yy, [_med(b[y]) for y in yy]
 
-    # paired: same cells, first three years vs last three
-    e_lo, e_hi = TY[0], TY[2]; l_lo, l_hi = TY[-3], TY[-1]
+    # paired: same cells, early three-year window vs the last three years. The early
+    # window is the first run of three consecutive years with >= PAIR_MIN scored
+    # cells each -- the very first years (1990s) are too thin to pair against.
+    PAIR_MIN = 100
+    _cy = collections.Counter(r[2] for r in recs)
+    e_lo = next((y for y in TY if all(_cy[y + k] >= PAIR_MIN for k in range(3))), TY[0])
+    e_hi = e_lo + 2; l_lo, l_hi = TY[-3], TY[-1]
     ear = collections.defaultdict(list); lat = collections.defaultdict(list)
     for r in recs:
         if e_lo <= r[2] <= e_hi: ear[(r[0], r[1])].append(r[3])
@@ -868,9 +989,6 @@ if os.path.exists('grid_cells_yearly.csv'):
     p_up = sum(1 for x in dif if x > 0); p_dn = sum(1 for x in dif if x < 0)
 
     # new vs returning cells, per year
-    first = {}
-    for r in sorted(recs, key=lambda x: x[2]):
-        first.setdefault((r[0], r[1]), r[2])
     nw, rt, pnew = [], [], []
     for y in TY:
         a = [r[3] for r in recs if r[2] == y and first[(r[0], r[1])] == y]
@@ -883,7 +1001,7 @@ if os.path.exists('grid_cells_yearly.csv'):
     n_cmp = sum(1 for a, b in zip(nw, rt) if a == a and b == b)
 
     fig = plt.figure(figsize=(11.69, 8.27))
-    fig.suptitle('Is there a ten-year trend?  Turnover, not change', size=14, weight='bold')
+    fig.suptitle(f'Is there a long-run trend ({TY[0]}-{TY[-1]})?  Turnover, not change', size=14, weight='bold')
 
     ax1 = fig.add_axes([0.065, 0.600, 0.385, 0.270])
     ax1.plot(TY, raw, marker='o', ms=4, color='#c0392b', lw=2,
@@ -899,6 +1017,7 @@ if os.path.exists('grid_cells_yearly.csv'):
     ax1.set_ylabel('Median richness (S_rare10)')
     ax1.set_title('The decline is in the pool, not the places', size=10.5)
     ax1.grid(True, lw=0.3, color='#eee'); ax1.legend(fontsize=7.5, loc='lower left')
+    _sparse_xticks(ax1, TY, pos=TY)
 
     ax2 = fig.add_axes([0.565, 0.600, 0.385, 0.270])
     ax2b = ax2.twinx()
@@ -907,10 +1026,12 @@ if os.path.exists('grid_cells_yearly.csv'):
     ax2b.tick_params(axis='y', labelsize=7, colors='#999'); ax2b.set_ylim(0, 100)
     ax2.set_zorder(ax2b.get_zorder() + 1); ax2.patch.set_visible(False)
     ax2.plot(TY, rt, marker='o', ms=4, color='#1a7a4c', lw=2, label='returning cells')
-    ax2.plot(TY, nw, marker='o', ms=4, color='#c47f17', lw=2, label='newly-recorded cells')
+    ax2.plot(TY, nw, marker='o', ms=4, color='#c47f17', lw=2, label='newly-scored cells')
     ax2.set_ylabel('Median richness'); ax2.grid(True, lw=0.3, color='#eee')
-    ax2.set_title('Newly-recorded cells are poorer, every year', size=10.5)
+    ax2.set_title('Newly-scored cells are poorer, every year' if n_lower == n_cmp else
+                  f'Newly-scored cells are poorer in {n_lower} of {n_cmp} years', size=10.5)
     ax2.legend(fontsize=7.5, loc='lower left')
+    _sparse_xticks(ax2, TY, pos=TY)
 
     ax3 = fig.add_axes([0.300, 0.395, 0.620, 0.135])
     ent = [('all scored cells (%d)' % len({(r[0], r[1]) for r in recs}),
@@ -931,31 +1052,38 @@ if os.path.exists('grid_cells_yearly.csv'):
     ax3.set_yticklabels([e[0] for e in reversed(ent)], size=7.6)
     _wl = min(e[2] for e in ent); _wh = max(e[3] for e in ent)
     ax3.set_xlim(_wl - 0.4, _wh + 0.4); ax3.set_ylim(-0.6, len(ent) - 0.4)
-    ax3.set_xlabel('Change in median richness over the decade (species), with 95% CI', size=8.5)
-    ax3.set_title('Every turnover-controlled estimate sits on zero -- but none is precise',
-                  size=10.5)
+    ax3.set_xlabel('Change in median richness, species per decade (paired row: last window - first), 95% CI', size=8.5)
+    _all0 = all(lo <= 0 <= hi for _, _, lo, hi in ent[1:])
+    ax3.set_title('Every turnover-controlled estimate sits on zero -- but none is precise' if _all0
+                  else 'Turnover-controlled estimates, with 95% CI', size=10.5)
     for s in ('top', 'right'):
         ax3.spines[s].set_visible(False)
     ax3.tick_params(axis='y', length=0)
     ax3.grid(True, axis='x', lw=0.3, color='#eee')
 
+    _sig = r_p < 0.05
+    _p8lo, _p8hi = _theil_sen(y8, s8)[1:]
     note = (
-        "NO. Raw, the series falls %.2f -> %.2f (Theil-Sen %+.2f species/decade, Kendall tau %+.2f,\n"
-        "p = %.3f) -- marginal, and not significant. Follow the SAME cells and it disappears:\n"
-        "the >=8-year panel gives %+.2f/decade and the %d paired cells %+.3f (%d up / %d down).\n\n"
-        "MECHANISM: %.0f-%.0f%% of each year's scored cells were never recorded before, and newly-\n"
-        "recorded cells sit below returning ones in %d of %d years. The archive keeps expanding into\n"
-        "thinner locations, which drags the pooled median down while no individual place changes.\n\n"
+        "%s Raw, the series falls %.2f -> %.2f (Theil-Sen %+.2f species/decade, Kendall tau %+.2f,\n"
+        "p = %.3f) -- %s. Follow the SAME cells: the >=8-year panel gives %+.2f/decade\n"
+        "and the %d cells paired %d-%d vs %d-%d change by %+.3f (%d up / %d down).\n\n"
+        "MECHANISM: %.0f-%.0f%% of each year's scored cells were never scored before, and newly-\n"
+        "scored cells sit below returning ones in %d of %d years. The archive keeps expanding into\n"
+        "thinner locations, which drags the pooled median down while individual places move up\n"
+        "and down in roughly equal numbers.\n\n"
         "LIMIT: the controlled estimates are UNDERPOWERED, not proof of stability. The paired CI is\n"
-        "[%+.2f, %+.2f] and the >=8-year panel spans more than two species -- a real decline of up to\n"
-        "~0.5 species/decade would not be detectable here. Read this as no evidence of a trend,\n"
-        "plus a well-identified artefact that explains the apparent one.\n\n"
-        "CONFOUND: the steepest fall is the last three years, exactly where the data source changes\n"
-        "from the historical backfill to the base+gap run. Year and processing path cannot be\n"
-        "separated with what is on disk, so even the marginal raw decline is suspect."
-    ) % (raw[0], raw[-1], r_sl * 10, r_tau, r_p, (_theil_sen(y8, s8)[0]) * 10,
-         np_, p_mean, p_up, p_dn, min(pnew[1:]), max(pnew[1:]), n_lower, n_cmp,
-         p_mean - p_ci, p_mean + p_ci)
+        "[%+.2f, %+.2f] and the >=8-year panel's is [%+.2f, %+.2f] per decade, so a real change of\n"
+        "that size would not be detectable here. Years before %d have < %d scored cells and are omitted.\n\n"
+        "CONFOUND: the data source changes with time. Before 2015 nearly every recording comes from\n"
+        "the merged external table (merged_metadata_all.csv), 2015-2022 from the historical backfill,\n"
+        "2023-2025 from the base+gap run -- each with its own download filters. Year and provenance\n"
+        "cannot be separated with what is on disk, so even the raw trend is suspect."
+    ) % ('NO SIGNIFICANT TREND.' if not _sig else 'A NOMINALLY SIGNIFICANT RAW TREND.',
+         raw[0], raw[-1], r_sl * 10, r_tau, r_p,
+         'significant at 0.05 only before controlling for turnover' if _sig else 'not significant at 0.05',
+         _p8, np_, e_lo, e_hi, l_lo, l_hi, p_mean, p_up, p_dn,
+         min(pnew), max(pnew), n_lower, n_cmp,
+         p_mean - p_ci, p_mean + p_ci, _p8lo * 10, _p8hi * 10, TY[0], MIN_YEAR_CELLS)
     fig.text(0.065, 0.335, note, ha='left', va='top', size=7.7, family='monospace')
     fig.text(0.5, 0.018, 'Acoustic Biodiversity Report  -  page 12  -  is there a trend?',
              ha='center', size=8, color='#999')

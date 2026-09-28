@@ -27,7 +27,9 @@ Inputs
 Outputs (written to ROOT)
   recordings_ecoregion.csv       one row per recording with coordinates
   ecoregion_biome_summary.csv    per RESOLVE biome: n + mean/median of key indices
-  ecoregion_summary.csv          per RESOLVE ecoregion (n >= MIN_N)
+  ecoregion_summary.csv          per RESOLVE ecoregion (n_indexed >= MIN_N)
+  n_recordings counts every recording; n_indexed only those whose index values
+  enter the means (this pipeline's, not the merged file's).
   ecoregion_realm_summary.csv    per realm
 """
 import os, csv, sys
@@ -49,7 +51,7 @@ CONTINENTS = ['africa', 'america', 'asia', 'australia', 'europe']
 
 CHUNK = 100_000          # points per STRtree query batch
 NEAREST_MAX_DEG = 0.1    # ~11 km at the equator; fallback cap for unmatched pts
-MIN_N = 30               # min recordings for a per-ecoregion summary row
+MIN_N = 30               # min recordings with index values for a per-ecoregion row
 
 # same key indices the urban classifier summarises, for direct comparability
 SUMMARY_COLS = [
@@ -95,7 +97,7 @@ TEOW_REALMS = {
 
 def load_recordings():
     """Read all continents' meta CSVs -> DataFrame of recordings with coords."""
-    keep = ['id', 'lat', 'lon', 'date', 'cnt'] + SUMMARY_COLS
+    keep = ['id', 'lat', 'lon', 'date', 'cnt', 'index_source'] + SUMMARY_COLS
     frames = []
     for c in CONTINENTS:
         path = f'{ROOT}/score_{c}_meta.csv'
@@ -110,6 +112,10 @@ def load_recordings():
     df['year'] = pd.to_numeric(df['date'].str[:4], errors='coerce')
     for col in SUMMARY_COLS:
         df[col] = pd.to_numeric(df[col], errors='coerce')
+    # rows merged from merged_metadata_all.csv carry indices from different settings
+    # (see merge_meta.py): keep them for classification, blank them for index summaries
+    if 'index_source' in df.columns:
+        df.loc[df['index_source'].fillna('local') != 'local', SUMMARY_COLS] = np.nan
     before = len(df)
     df = df.dropna(subset=['lat', 'lon']).copy()
     # guard against out-of-range coords
@@ -173,11 +179,19 @@ def assign(points, shp, attr_cols, label):
     return out, match
 
 
+def n_indexed(g):
+    """Rows behind the index means: merged-file rows carry no index values."""
+    if 'index_source' not in g.columns:
+        return len(g)
+    return int((g['index_source'].fillna('local') == 'local').sum())
+
+
 def summarise(df, by, path, min_n=1):
     """Per-group n + mean/median of the key indices -> CSV."""
     rows = []
     for key, g in df.groupby(by, dropna=True):
-        if len(g) < min_n:
+        n_ix = n_indexed(g)
+        if n_ix < min_n:
             continue
         rec = {}
         if isinstance(by, list):
@@ -186,6 +200,7 @@ def summarise(df, by, path, min_n=1):
         else:
             rec[by] = key
         rec['n_recordings'] = len(g)
+        rec['n_indexed'] = n_ix
         for col in SUMMARY_COLS:
             rec[f'{col}__mean'] = g[col].mean()
             rec[f'{col}__median'] = g[col].median()

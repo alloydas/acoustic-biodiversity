@@ -51,6 +51,13 @@ INDICES = [
 # a real NB_peaks == 0 (no peaks detected). Those are kept.
 DEGENERATE_GUARD = 'ZCR__mean'
 
+# Rows merged from merged_metadata_all.csv (index_source == 'extra', see
+# merge_meta.py) carry indices computed with different settings -- e.g. a
+# Bio_acoustic_Index ~36x ours on the same recordings -- so they are excluded
+# from the index means the same way as degenerate rows: counted in n_rec and
+# species, but contributing no index values.
+INDEX_SOURCES = {'local'}
+
 
 def fnum(s):
     try:
@@ -68,12 +75,12 @@ def cell_key(lat, lon):
 
 # cell -> aggregation state
 cells = collections.defaultdict(lambda: {
-    'continent': None, 'n': 0,
+    'conts': collections.Counter(), 'n': 0,   # continent -> rows (label = majority)
     'sums': collections.defaultdict(float), 'cnts': collections.defaultdict(int),
     'sp_incidence': collections.Counter(),  # species -> # recordings containing it
 })
 
-total = skipped_coord = degenerate = 0
+total = skipped_coord = degenerate = foreign = 0
 for cont, path in FILES.items():
     with open(path, newline='') as f:
         r = csv.reader(f)
@@ -86,7 +93,7 @@ for cont, path in FILES.items():
                 skipped_coord += 1
                 continue
             c = cells[key]
-            c['continent'] = cont
+            c['conts'][cont] += 1
             c['n'] += 1
             # species in this recording: main + co-occurring
             sp = set()
@@ -100,7 +107,9 @@ for cont, path in FILES.items():
             for s in sp:
                 c['sp_incidence'][s] += 1
             zcr = fnum(row[ci[DEGENERATE_GUARD]]) if DEGENERATE_GUARD in ci else None
-            if zcr == 0:
+            if 'index_source' in ci and row[ci['index_source']] not in INDEX_SOURCES:
+                foreign += 1
+            elif zcr == 0:
                 degenerate += 1
             else:
                 for idx in INDICES:
@@ -113,6 +122,7 @@ for cont, path in FILES.items():
 
 print(f'recordings read: {total}   skipped (no coord): {skipped_coord}')
 print(f'degenerate (silent audio, indices excluded from means): {degenerate}')
+print(f'other-pipeline rows (index_source not in {sorted(INDEX_SOURCES)}, indices excluded): {foreign}')
 print(f'grid cells (0.1 deg): {len(cells)}')
 
 
@@ -141,7 +151,7 @@ with open('grid_cells.csv', 'w', newline='') as f:
         s_obs = len(c['sp_incidence'])
         s_rare = rarefy(c['sp_incidence'], c['n'], M)
         means = [(c['sums'][i] / c['cnts'][i]) if c['cnts'][i] else '' for i in INDICES]
-        w.writerow([la, lo, c['continent'], c['n'], s_obs,
+        w.writerow([la, lo, c['conts'].most_common(1)[0][0], c['n'], s_obs,
                     '' if s_rare is None else round(s_rare, 3)] + means)
         if s_rare is not None:
             out_rows.append((s_rare, means, c['n'], s_obs))

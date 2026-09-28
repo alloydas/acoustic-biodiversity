@@ -125,7 +125,9 @@ with open('cell_change.csv', newline='') as f:
     h = next(r); ci = {c: i for i, c in enumerate(h)}
     for row in r:
         # cell_change stores CELL CENTRES (lat_cell + 0.05); undo that before keying
-        k = ikey(float(row[ci['lat']]) - 0.05, float(row[ci['lon']]) - 0.05)
+        # round(), not floor(): 13.45 - 0.05 = 13.3999... would floor into the
+        # neighbouring cell (531 of 3,637 tracked cells were mis-keyed that way, 209 into no cell)
+        k = ikey_from_cell(float(row[ci['lat']]) - 0.05, float(row[ci['lon']]) - 0.05)
         b = cell_biome.get(k)
         if b:
             dir_by_biome[b][row[ci['direction']]] += 1

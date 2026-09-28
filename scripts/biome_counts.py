@@ -52,10 +52,14 @@ def load_metrics(idx_cols):
     """id + continent + finite-ness of every index column, for all continents."""
     frames = []
     for c in CONTINENTS:
-        keep = set(['id'] + idx_cols)
+        keep = set(['id', 'index_source'] + idx_cols)
         df = pd.read_csv(f'{ROOT}/score_{c}_meta.csv',
                          usecols=lambda x: x in keep, engine='python',
                          on_bad_lines='skip', dtype=str)
+        # only this pipeline's recordings: merged_metadata_all.csv rows carry indices from
+        # different settings that the analysis never uses (see merge_meta.py)
+        if 'index_source' in df.columns:
+            df = df[df['index_source'].fillna('local') == 'local'].drop(columns='index_source')
         df['continent'] = c
         frames.append(df)
         print(f'  {c}: {len(df)} rows', flush=True)
@@ -104,8 +108,9 @@ def main():
                                'eco_name', 'eco_match'], dtype=str)
     print(f'  {len(eco)} labeled recordings', flush=True)
 
-    # join on (id, continent): ids are not globally unique (asia/australia overlap)
-    df = eco.merge(met, on=['id', 'continent'], how='left')
+    # join on (id, continent). Inner join: met holds only this pipeline's recordings,
+    # so merged-file recordings (no usable indices) drop out instead of counting as missing.
+    df = eco.merge(met, on=['id', 'continent'], how='inner')
     print(f'  joined: {len(df)} rows, '
           f'{df[idx_cols[0]].notna().sum()} with metric data', flush=True)
 
